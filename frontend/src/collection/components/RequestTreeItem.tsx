@@ -1,6 +1,6 @@
 import { Trash2 } from "lucide-react";
 import type RequestTreeItemProps from "../types/props/RequestTreeItemProps";
-import useRequestStore from "../../request/store/RequestStore";
+import useRequestStore from "../../request/store/requestStore";
 
 const getMethodColor = (method: string) => {
   switch (method) {

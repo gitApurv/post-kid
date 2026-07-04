@@ -11,7 +11,7 @@ import {
   Loader2,
 } from "lucide-react";
 import type HistoryInspectorModalProps from "../types/props/HistoryInspectorModalProps";
-import useHistoryStore from "../store/HistoryStore";
+import useHistoryStore from "../store/historyStore";
 import HistoryService from "../service/HistoryService";
 
 export default function HistoryInspectorModal({

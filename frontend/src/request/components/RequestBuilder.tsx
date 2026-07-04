@@ -13,9 +13,9 @@ import {
   Edit3,
   ChevronDown,
 } from "lucide-react";
-import useRequestStore from "../store/RequestStore";
+import useRequestStore from "../store/requestStore";
 import type RequestItem from "../types/items/RequestItem";
-import useEnvironmentStore from "../../environment/store/EnvironmentStore";
+import useEnvironmentStore from "../../environment/store/environmentStore";
 
 const PHANTOM_ROW = { key: "", value: "", active: true };
 

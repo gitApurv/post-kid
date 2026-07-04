@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { Calendar, Trash2, Info, Loader2 } from "lucide-react";
 import type HistoryListProps from "../types/props/HistoryListProps";
-import useHistoryStore from "../store/HistoryStore";
+import useHistoryStore from "../store/historyStore";
 import HistoryService from "../service/HistoryService";
 
 export default function HistoryList({ items, onInspect }: HistoryListProps) {

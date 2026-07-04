@@ -2,8 +2,8 @@ import { create } from "zustand";
 import type FolderState from "../types/state/FolderState";
 import type Folder from "../types/items/FolderItem";
 import FolderService from "../service/FolderService";
-import useWorkspaceStore from "../../workspace/store/WorkspaceStore";
-import useRequestStore from "../../request/store/RequestStore";
+import useWorkspaceStore from "../../workspace/store/workspaceStore";
+import useRequestStore from "../../request/store/requestStore";
 
 function collectDescendantIds(
   folders: Record<string, Folder>,
@@ -57,6 +57,13 @@ const useFolderStore = create<FolderState>((set, get) => ({
         Object.entries(state.folders).filter(
           ([, folder]) => folder.collectionId !== collectionId,
         ),
+      ),
+    })),
+
+  removeFoldersByIds: (ids) =>
+    set((state) => ({
+      folders: Object.fromEntries(
+        Object.entries(state.folders).filter(([id]) => !ids.includes(id)),
       ),
     })),
 

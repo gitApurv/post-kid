@@ -12,7 +12,7 @@ import {
   LogOut,
 } from "lucide-react";
 import md5 from "blueimp-md5";
-import useWorkspaceStore from "../store/WorkspaceStore";
+import useWorkspaceStore from "../store/workspaceStore";
 import useAuthStore from "../../auth/store/AuthStore";
 import WorkspaceService from "../service/WorkspaceService";
 import type MemberResponse from "../types/response/MemberResponse";

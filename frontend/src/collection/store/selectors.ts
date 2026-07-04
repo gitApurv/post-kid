@@ -1,7 +1,7 @@
 import { useMemo } from "react";
 import useFolderStore from "./FolderStore";
 import type Folder from "../types/items/FolderItem";
-import useRequestStore from "../../request/store/RequestStore";
+import useRequestStore from "../../request/store/requestStore";
 import type RequestItem from "../../request/types/items/RequestItem";
 
 // Root folders for a collection

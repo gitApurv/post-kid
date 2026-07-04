@@ -3,7 +3,7 @@ import { createPortal } from "react-dom";
 import { FolderPlus, Loader2, X } from "lucide-react";
 import type ModalProps from "../../common/types/ModalProps";
 import useEnvironmentStore from "../store/EnvironmentStore";
-import useWorkspaceStore from "../../workspace/store/WorkspaceStore";
+import useWorkspaceStore from "../../workspace/store/workspaceStore";
 import EnvironmentService from "../service/EnvironmentService";
 import type { EnvironmentColor } from "../types/items/Environment";
 

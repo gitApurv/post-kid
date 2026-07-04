@@ -8,7 +8,7 @@ import {
   AlertCircle,
   Code,
 } from "lucide-react";
-import useRequestStore from "../store/RequestStore";
+import useRequestStore from "../store/requestStore";
 
 export default function ResponseViewer() {
   const isExecuting = useRequestStore((state) => state.isExecuting);

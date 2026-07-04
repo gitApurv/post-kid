@@ -10,9 +10,9 @@ import {
 } from "lucide-react";
 import type FolderTreeItemProps from "../types/props/FolderTreeItemProps";
 import RequestTreeItem from "./RequestTreeItem";
-import useWorkspaceStore from "../../workspace/store/WorkspaceStore";
+import useWorkspaceStore from "../../workspace/store/workspaceStore";
 import useFolderStore from "../store/FolderStore";
-import useRequestStore from "../../request/store/RequestStore";
+import useRequestStore from "../../request/store/requestStore";
 import { useChildFolders, useFolderRequests } from "../store/selectors";
 import RequestService from "../../request/service/RequestService";
 import FolderService from "../service/FolderService";

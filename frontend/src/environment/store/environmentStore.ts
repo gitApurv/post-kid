@@ -1,5 +1,5 @@
 import { create } from "zustand";
-import useWorkspaceStore from "../../workspace/store/WorkspaceStore";
+import useWorkspaceStore from "../../workspace/store/workspaceStore";
 import type Environment from "../types/items/Environment";
 import type EnvironmentState from "../types/state/EnvironmentState";
 import EnvironmentService from "../service/EnvironmentService";

@@ -1,6 +1,6 @@
 import { create } from "zustand";
-import useWorkspaceStore from "../../workspace/store/WorkspaceStore";
-import useEnvironmentStore from "../../environment/store/EnvironmentStore";
+import useWorkspaceStore from "../../workspace/store/workspaceStore";
+import useEnvironmentStore from "../../environment/store/environmentStore";
 import RequestService from "../service/RequestService";
 import type RequestItemRequest from "../types/request/RequestItemRequest";
 import type RequestItemResponse from "../types/response/RequestItemResponse";

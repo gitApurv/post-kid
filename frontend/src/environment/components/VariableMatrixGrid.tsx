@@ -1,7 +1,7 @@
 import { useState, useMemo } from "react";
 import { Trash2, FolderPlus, Edit3 } from "lucide-react";
 import useEnvironmentStore from "../store/EnvironmentStore";
-import useWorkspaceStore from "../../workspace/store/WorkspaceStore";
+import useWorkspaceStore from "../../workspace/store/workspaceStore";
 import EnvironmentService from "../service/EnvironmentService";
 
 export default function VariableMatrixGrid({

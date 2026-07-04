@@ -1,5 +1,5 @@
 import { Sparkles } from "lucide-react";
-import useRequestStore from "../../request/store/RequestStore";
+import useRequestStore from "../../request/store/requestStore";
 import CollectionSidebar from "../../collection/components/CollectionSidebar";
 import RequestBuilder from "../../request/components/RequestBuilder";
 import ResponseViewer from "../../request/components/ResponseViewer";

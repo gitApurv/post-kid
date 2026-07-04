@@ -1,7 +1,7 @@
 import { useEffect } from "react";
 import { Plus, Trash2 } from "lucide-react";
 import useEnvironmentStore from "../store/EnvironmentStore";
-import useWorkspaceStore from "../../workspace/store/WorkspaceStore";
+import useWorkspaceStore from "../../workspace/store/workspaceStore";
 import EnvironmentService from "../service/EnvironmentService";
 import type EnvironmentScopeListProps from "../types/props/EnvironmentScopeListProps";
 

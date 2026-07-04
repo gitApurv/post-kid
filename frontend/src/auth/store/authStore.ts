@@ -2,12 +2,12 @@ import { create } from "zustand";
 import type AuthState from "../types/state/AuthState";
 import type UserItem from "../types/items/UserItem";
 import AuthService from "../service/AuthService";
-import useWorkspaceStore from "../../workspace/store/WorkspaceStore";
-import useCollectionStore from "../../collection/store/CollectionStore";
+import useWorkspaceStore from "../../workspace/store/workspaceStore";
+import useCollectionStore from "../../collection/store/collectionStore";
 import useFolderStore from "../../collection/store/FolderStore";
-import useRequestStore from "../../request/store/RequestStore";
-import useEnvironmentStore from "../../environment/store/EnvironmentStore";
-import useHistoryStore from "../../history/store/HistoryStore";
+import useRequestStore from "../../request/store/requestStore";
+import useEnvironmentStore from "../../environment/store/environmentStore";
+import useHistoryStore from "../../history/store/historyStore";
 
 // ── Utility: derive Gravatar URL from email ──
 async function getGravatarUrl(email: string): Promise<string> {

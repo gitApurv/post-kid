@@ -12,10 +12,10 @@ import {
 import EnvironmentScopeList from "../../environment/components/EnvironmentScopeList";
 import VariableMatrixGrid from "../../environment/components/VariableMatrixGrid";
 import CreateEnvironmentModal from "../../environment/components/CreateEnvironmentModal";
-import useWorkspaceStore from "../../workspace/store/WorkspaceStore";
-import useCollectionStore from "../store/CollectionStore";
-import useRequestStore from "../../request/store/RequestStore";
-import useEnvironmentStore from "../../environment/store/EnvironmentStore";
+import useWorkspaceStore from "../../workspace/store/workspaceStore";
+import useCollectionStore from "../store/collectionStore";
+import useRequestStore from "../../request/store/requestStore";
+import useEnvironmentStore from "../../environment/store/environmentStore";
 import { useRootFolderCount } from "../store/selectors";
 import CollectionService from "../service/CollectionService";
 

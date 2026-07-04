@@ -2,7 +2,7 @@ import { useState } from "react";
 import { createPortal } from "react-dom";
 import { AlertTriangle, Loader2 } from "lucide-react";
 import type ModalProps from "../../common/types/ModalProps";
-import useHistoryStore from "../store/HistoryStore";
+import useHistoryStore from "../store/historyStore";
 import HistoryService from "../service/HistoryService";
 
 export default function ClearHistoryModal({ isOpen, onClose }: ModalProps) {

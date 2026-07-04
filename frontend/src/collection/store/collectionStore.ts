@@ -1,9 +1,9 @@
 import { create } from "zustand";
 import type CollectionState from "../types/state/CollectionState";
 import CollectionService from "../service/CollectionService";
-import useWorkspaceStore from "../../workspace/store/WorkspaceStore";
+import useWorkspaceStore from "../../workspace/store/workspaceStore";
 import useFolderStore from "./FolderStore";
-import useRequestStore from "../../request/store/RequestStore";
+import useRequestStore from "../../request/store/requestStore";
 
 const useCollectionStore = create<CollectionState>((set, get) => ({
   collections: {},

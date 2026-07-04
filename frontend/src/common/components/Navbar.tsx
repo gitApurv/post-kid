@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from "react";
 import { ChevronDown, Layers2, Settings, Zap } from "lucide-react";
 import { useLocation } from "react-router-dom";
-import useWorkspaceStore from "../../workspace/store/WorkspaceStore";
+import useWorkspaceStore from "../../workspace/store/workspaceStore";
 import WorkspaceSettingsModal from "../../workspace/components/WorkspaceSettingsModal";
 
 export default function Navbar() {

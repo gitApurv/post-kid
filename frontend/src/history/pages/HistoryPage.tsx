@@ -4,7 +4,7 @@ import HistoryInspectorModal from "../components/HistoryInspectorModal";
 import ClearHistoryModal from "../components/ClearHistoryModal";
 import HistoryList from "../components/HistoryList";
 import type HistoryItem from "../types/items/HistoryItem";
-import useHistoryStore from "../store/HistoryStore";
+import useHistoryStore from "../store/historyStore";
 import HistoryService from "../service/HistoryService";
 
 export default function HistoryPage() {

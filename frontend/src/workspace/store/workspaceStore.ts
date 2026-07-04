@@ -1,10 +1,10 @@
 import { create } from "zustand";
 import type WorkspaceItem from "../types/items/WorkspaceItem";
 import type WorkspaceState from "../types/state/WorkspaceState";
-import useCollectionStore from "../../collection/store/CollectionStore";
+import useCollectionStore from "../../collection/store/collectionStore";
 import useFolderStore from "../../collection/store/FolderStore";
-import useEnvironmentStore from "../../environment/store/EnvironmentStore";
-import useRequestStore from "../../request/store/RequestStore";
+import useEnvironmentStore from "../../environment/store/environmentStore";
+import useRequestStore from "../../request/store/requestStore";
 import WorkspaceService from "../service/WorkspaceService";
 import CollectionService from "../../collection/service/CollectionService";
 
