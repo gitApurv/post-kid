@@ -17,7 +17,6 @@ public class CollectionResponse {
     private UUID id;
     private String name;
     private String description;
-    private int folderCount;
     private Instant createdAt;
     private Instant updatedAt;
 

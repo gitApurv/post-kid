@@ -1,8 +1,4 @@
 import { useState, useMemo, useEffect, useRef } from "react";
-import { useRequestStore } from "../store/requestStore";
-import type { RequestItem } from "../types/RequestItem";
-import { useEnvironmentStore } from "../../environment/store/environmentStore";
-
 import {
   Send,
   Info,
@@ -17,12 +13,20 @@ import {
   Edit3,
   ChevronDown,
 } from "lucide-react";
+import useRequestStore from "../store/RequestStore";
+import type RequestItem from "../types/items/RequestItem";
+import useEnvironmentStore from "../../environment/store/EnvironmentStore";
+
+const PHANTOM_ROW = { key: "", value: "", active: true };
 
 export default function RequestBuilder() {
   const activeRequest = useRequestStore((state) => state.activeRequest);
   const isExecuting = useRequestStore((state) => state.isExecuting);
   const updateActiveRequestAction = useRequestStore(
     (state) => state.updateActiveRequestAction,
+  );
+  const updateActiveRequestFields = useRequestStore(
+    (state) => state.updateActiveRequestFields,
   );
   const executeRequestAction = useRequestStore(
     (state) => state.executeRequestAction,
@@ -35,17 +39,21 @@ export default function RequestBuilder() {
     }
   };
 
-  const phantomRow = { key: "", value: "", active: true };
-
-  const storeParams = activeRequest?.params || [];
+  const storeParams = useMemo(
+    () => activeRequest?.params || [],
+    [activeRequest?.params],
+  );
   const displayParams = useMemo(
-    () => [...storeParams, phantomRow],
+    () => [...storeParams, PHANTOM_ROW],
     [storeParams],
   );
 
-  const storeHeaders = activeRequest?.headers || [];
+  const storeHeaders = useMemo(
+    () => activeRequest?.headers || [],
+    [activeRequest?.headers],
+  );
   const displayHeaders = useMemo(
-    () => [...storeHeaders, phantomRow],
+    () => [...storeHeaders, PHANTOM_ROW],
     [storeHeaders],
   );
 
@@ -53,8 +61,8 @@ export default function RequestBuilder() {
   const activeEnvironmentId = useEnvironmentStore(
     (state) => state.activeEnvironmentId,
   );
-  const setActiveEnvironment = useEnvironmentStore(
-    (state) => state.setActiveEnvironmentAction,
+  const setActiveEnvironmentId = useEnvironmentStore(
+    (state) => state.setActiveEnvironmentId,
   );
 
   const [activeTab, setActiveTab] = useState<
@@ -68,10 +76,17 @@ export default function RequestBuilder() {
   const [editName, setEditName] = useState("");
   const [localUrl, setLocalUrl] = useState("");
 
-  const [prevRequestId, setPrevRequestId] = useState<string | undefined>(activeRequest?.id);
-  const [prevRequestUrl, setPrevRequestUrl] = useState<string | undefined>(activeRequest?.url);
+  const [prevRequestId, setPrevRequestId] = useState<string | undefined>(
+    activeRequest?.id,
+  );
+  const [prevRequestUrl, setPrevRequestUrl] = useState<string | undefined>(
+    activeRequest?.url,
+  );
 
-  if (activeRequest?.id !== prevRequestId || activeRequest?.url !== prevRequestUrl) {
+  if (
+    activeRequest?.id !== prevRequestId ||
+    activeRequest?.url !== prevRequestUrl
+  ) {
     setPrevRequestId(activeRequest?.id);
     setPrevRequestUrl(activeRequest?.url);
     if (activeRequest) {
@@ -127,10 +142,8 @@ export default function RequestBuilder() {
   }, [methodDropdownOpen]);
 
   const activeEnvironment =
-    environments.find(
-      (environment) => environment.id === activeEnvironmentId,
-    ) || environments[0];
-  const activeVariables = activeEnvironment?.variables || [];
+    environments[activeEnvironmentId] ?? Object.values(environments)[0];
+  const activeVariables = Object.values(activeEnvironment?.variables ?? {});
 
   const getResolvedUrl = (rawUrl: string) => {
     let url = rawUrl;
@@ -197,10 +210,7 @@ export default function RequestBuilder() {
 
   const handleSend = async () => {
     if (!activeRequest) return;
-    const response = await executeRequestAction(
-      activeEnvironmentId,
-      environments,
-    );
+    const response = await executeRequestAction();
     if (response && !response.success) {
       alert(response.error || "Failed to execute request.");
     }
@@ -353,13 +363,13 @@ export default function RequestBuilder() {
                     Environment
                   </div>
                   <div className="max-h-40 overflow-y-auto space-y-0.5 custom-scrollbar pr-0.5">
-                    {environments.map((environment) => {
+                    {Object.values(environments).map((environment) => {
                       const isSelected = environment.id === activeEnvironmentId;
                       return (
                         <button
                           key={environment.id}
                           onClick={() => {
-                            setActiveEnvironment(environment.id);
+                            setActiveEnvironmentId(environment.id);
                             setEnvDropdownOpen(false);
                           }}
                           className={`w-full text-left px-2.5 py-1.5 text-xs rounded-lg transition-standard flex items-center justify-between cursor-pointer ${
@@ -428,7 +438,10 @@ export default function RequestBuilder() {
           <input
             type="text"
             value={showResolvedUrl ? getResolvedUrl(localUrl) : localUrl}
-            onChange={(e) => setLocalUrl(e.target.value)}
+            onChange={(e) => {
+              setLocalUrl(e.target.value);
+              updateActiveRequestFields({ url: e.target.value });
+            }}
             onBlur={() => {
               if (activeRequest && localUrl !== activeRequest.url) {
                 handleUpdateRequest({ url: localUrl });
@@ -436,9 +449,6 @@ export default function RequestBuilder() {
             }}
             onKeyDown={(e) => {
               if (e.key === "Enter") {
-                if (activeRequest && localUrl !== activeRequest.url) {
-                  handleUpdateRequest({ url: localUrl });
-                }
                 e.currentTarget.blur();
               }
             }}

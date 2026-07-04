@@ -1,13 +1,12 @@
 import { useState } from "react";
 import { createPortal } from "react-dom";
-import { useHistoryStore } from "../store/historyStore";
 import { AlertTriangle, Loader2 } from "lucide-react";
-import type { ModalProps } from "../../common/types/ModalProps";
+import type ModalProps from "../../common/types/ModalProps";
+import useHistoryStore from "../store/HistoryStore";
+import HistoryService from "../service/HistoryService";
 
 export default function ClearHistoryModal({ isOpen, onClose }: ModalProps) {
-  const clearHistoryAction = useHistoryStore(
-    (state) => state.clearHistoryAction,
-  );
+  const clearHistories = useHistoryStore((state) => state.clearHistories);
 
   const [error, setError] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
@@ -25,12 +24,13 @@ export default function ClearHistoryModal({ isOpen, onClose }: ModalProps) {
     if (isLoading) return;
     setIsLoading(true);
     setError(null);
-    const response = await clearHistoryAction();
+    const response = await HistoryService.clearHistory();
     if (!response.success) {
       setError(response.error || "Failed to clear history.");
       setIsLoading(false);
       return;
     }
+    clearHistories();
     setIsLoading(false);
     onClose();
   };

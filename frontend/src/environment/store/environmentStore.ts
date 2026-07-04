@@ -1,368 +1,120 @@
 import { create } from "zustand";
-import type { Environment } from "../types/Environment";
-import type { EnvironmentState } from "../types/EnvironmentState";
-import api from "../../config/axios";
-import type { ApiResponse } from "../../common/types/ApiResponse";
-import axios from "axios";
-import type { EnvironmentResponse } from "../types/EnvironmentResponse";
-import type { EnvironmentRequest } from "../types/EnvironmentRequest";
-import type { VariableRequest } from "../types/VariableRequest";
-import type { VariableResponse } from "../types/VariableResponse";
-import { useWorkspaceStore } from "../../workspace/store/workspaceStore";
+import useWorkspaceStore from "../../workspace/store/WorkspaceStore";
+import type Environment from "../types/items/Environment";
+import type EnvironmentState from "../types/state/EnvironmentState";
+import EnvironmentService from "../service/EnvironmentService";
+import type EnvironmentResponse from "../types/response/EnvironmentResponse";
 
-export const useEnvironmentStore = create<EnvironmentState>((set) => ({
-  environments: [],
+// ── Utility: map EnvironmentResponse DTO → Environment ──
+function mapResponseToEnvironment(res: EnvironmentResponse): Environment {
+  return {
+    id: res.id,
+    name: res.name,
+    color: res.environmentColor,
+    variables: Object.fromEntries(
+      res.variables.map((variable) => [
+        variable.id,
+        { id: variable.id, key: variable.key, value: variable.value },
+      ]),
+    ),
+  };
+}
+
+const useEnvironmentStore = create<EnvironmentState>((set, get) => ({
+  environments: {},
   activeEnvironmentId: "",
 
-  setActiveEnvironmentAction: (environmentId: string) => {
-    set({ activeEnvironmentId: environmentId });
+  // ─── Mutations ───────────────────────────────────────────────
+
+  upsertEnvironment: (environment) =>
+    set((state) => ({
+      environments: { ...state.environments, [environment.id]: environment },
+    })),
+
+  setEnvironments: (environments) => set({ environments }),
+
+  removeEnvironment: (environmentId) =>
+    set((state) => {
+      const remainingEnvironments = { ...state.environments };
+      delete remainingEnvironments[environmentId];
+      return {
+        environments: remainingEnvironments,
+        activeEnvironmentId:
+          state.activeEnvironmentId === environmentId
+            ? ""
+            : state.activeEnvironmentId,
+      };
+    }),
+
+  setActiveEnvironmentId: (id) => set({ activeEnvironmentId: id }),
+
+  upsertVariable: (environmentId, variable) =>
+    set((state) => {
+      const existing = state.environments[environmentId];
+      if (!existing) return state;
+      return {
+        environments: {
+          ...state.environments,
+          [environmentId]: {
+            ...existing,
+            variables: { ...existing.variables, [variable.id]: variable },
+          },
+        },
+      };
+    }),
+
+  removeVariable: (environmentId, variableId) =>
+    set((state) => {
+      const existing = state.environments[environmentId];
+      if (!existing) return state;
+
+      const remainingVariables = { ...existing.variables };
+      delete remainingVariables[variableId];
+
+      return {
+        environments: {
+          ...state.environments,
+          [environmentId]: { ...existing, variables: remainingVariables },
+        },
+      };
+    }),
+
+  reset: () =>
+    set({
+      environments: {},
+      activeEnvironmentId: "",
+    }),
+
+  // ─── Actions ─────────────────────────────────────────────────
+
+  fetchEnvironmentsAction: async (collectionId) => {
+    const workspaceId = useWorkspaceStore.getState().activeWorkspaceId;
+    if (!workspaceId)
+      return { success: false, error: "No active workspace selected" };
+
+    const res = await EnvironmentService.fetchEnvironments(
+      workspaceId,
+      collectionId,
+    );
+    if (!res.success) return res;
+
+    const record: Record<string, Environment> = Object.fromEntries(
+      res.data.map((environment) => [
+        environment.id,
+        mapResponseToEnvironment(environment),
+      ]),
+    );
+
+    get().setEnvironments(record);
+
+    const { activeEnvironmentId } = get();
+    const ids = Object.keys(record);
+    if (!activeEnvironmentId || !record[activeEnvironmentId]) {
+      get().setActiveEnvironmentId(ids[0] ?? "");
+    }
+
     return { success: true };
   },
-
-  fetchEnvironmentsAction: async (collectionId: string) => {
-    const workspaceId = useWorkspaceStore.getState().activeWorkspaceId;
-    if (!workspaceId) {
-      return { success: false, error: "No active workspace selected" };
-    }
-    try {
-      const fetchEnvironmentsResponse =
-        await api.get<ApiResponse<EnvironmentResponse[]>>(`/workspaces/${workspaceId}/collections/${collectionId}/environments`);
-      if (
-        fetchEnvironmentsResponse.data.success &&
-        fetchEnvironmentsResponse.data.data
-      ) {
-        const environments: Environment[] =
-          fetchEnvironmentsResponse.data.data.map((environment) => ({
-            id: environment.id,
-            name: environment.name,
-            color: environment.environmentColor,
-            variables: environment.variables.map((variable) => ({
-              id: variable.id,
-              key: variable.key,
-              value: variable.value,
-            })),
-          }));
-        set((state) => ({
-          environments,
-          activeEnvironmentId:
-            environments.length > 0 &&
-            (!state.activeEnvironmentId ||
-              !environments.some((e) => e.id === state.activeEnvironmentId))
-              ? environments[0].id
-              : state.activeEnvironmentId,
-        }));
-        return { success: true };
-      } else {
-        return {
-          success: false,
-          error:
-            fetchEnvironmentsResponse.data.message ||
-            "Failed to fetch environments.",
-        };
-      }
-    } catch (error) {
-      console.error("Failed to fetch environments:", error);
-      let errorMessage = "Failed to fetch environments.";
-      if (axios.isAxiosError<ApiResponse<unknown>>(error)) {
-        errorMessage =
-          error.response?.data?.message || error.message || errorMessage;
-      } else if (error instanceof Error) {
-        errorMessage = error.message;
-      }
-      return { success: false, error: errorMessage };
-    }
-  },
-
-  addEnvironmentAction: async (collectionId: string, request: EnvironmentRequest) => {
-    const workspaceId = useWorkspaceStore.getState().activeWorkspaceId;
-    if (!workspaceId) {
-      return { success: false, error: "No active workspace selected" };
-    }
-    try {
-      const addEnvironmentResponse = await api.post<
-        ApiResponse<EnvironmentResponse>
-      >(`/workspaces/${workspaceId}/collections/${collectionId}/environments`, request);
-      if (
-        addEnvironmentResponse.data.success &&
-        addEnvironmentResponse.data.data
-      ) {
-        const environment: Environment = {
-          id: addEnvironmentResponse.data.data.id,
-          name: addEnvironmentResponse.data.data.name,
-          color: addEnvironmentResponse.data.data.environmentColor,
-          variables: addEnvironmentResponse.data.data.variables.map(
-            (variable) => ({
-              id: variable.id,
-              key: variable.key,
-              value: variable.value,
-            }),
-          ),
-        };
-        set((state) => ({
-          environments: [...state.environments, environment],
-          activeEnvironmentId: environment.id,
-        }));
-        return { success: true };
-      }
-      return {
-        success: false,
-        error:
-          addEnvironmentResponse.data.message || "Failed to add environment.",
-      };
-    } catch (error) {
-      console.error("Failed to add environment:", error);
-      let errorMessage = "Failed to add environment.";
-      if (axios.isAxiosError<ApiResponse<unknown>>(error)) {
-        errorMessage =
-          error.response?.data?.message || error.message || errorMessage;
-      } else if (error instanceof Error) {
-        errorMessage = error.message;
-      }
-      return { success: false, error: errorMessage };
-    }
-  },
-
-  editEnvironmentAction: async (
-    collectionId: string,
-    environmentId: string,
-    request: EnvironmentRequest,
-  ) => {
-    const workspaceId = useWorkspaceStore.getState().activeWorkspaceId;
-    if (!workspaceId) {
-      return { success: false, error: "No active workspace selected" };
-    }
-    try {
-      const editEnvironmentResponse = await api.put<
-        ApiResponse<EnvironmentResponse>
-      >(`/workspaces/${workspaceId}/collections/${collectionId}/environments/${environmentId}`, request);
-      if (
-        editEnvironmentResponse.data.success &&
-        editEnvironmentResponse.data.data
-      ) {
-        const updatedEnv: Environment = {
-          id: editEnvironmentResponse.data.data.id,
-          name: editEnvironmentResponse.data.data.name,
-          color: editEnvironmentResponse.data.data.environmentColor,
-          variables: editEnvironmentResponse.data.data.variables.map(
-            (variable) => ({
-              id: variable.id,
-              key: variable.key,
-              value: variable.value,
-            }),
-          ),
-        };
-        set((state) => ({
-          environments: state.environments.map((environment) =>
-            environment.id === environmentId ? updatedEnv : environment,
-          ),
-        }));
-        return { success: true };
-      }
-      return {
-        success: false,
-        error:
-          editEnvironmentResponse.data.message ||
-          "Failed to update environment.",
-      };
-    } catch (error) {
-      console.error("Failed to update environment:", error);
-      let errorMessage = "Failed to update environment.";
-      if (axios.isAxiosError<ApiResponse<unknown>>(error)) {
-        errorMessage =
-          error.response?.data?.message || error.message || errorMessage;
-      } else if (error instanceof Error) {
-        errorMessage = error.message;
-      }
-      return { success: false, error: errorMessage };
-    }
-  },
-
-  deleteEnvironmentAction: async (collectionId: string, environmentId: string) => {
-    const workspaceId = useWorkspaceStore.getState().activeWorkspaceId;
-    if (!workspaceId) {
-      return { success: false, error: "No active workspace selected" };
-    }
-    try {
-      const deleteEnvironmentResponse = await api.delete<ApiResponse<void>>(
-        `/workspaces/${workspaceId}/collections/${collectionId}/environments/${environmentId}`,
-      );
-      if (deleteEnvironmentResponse.data.success) {
-        set((state) => ({
-          environments: state.environments.filter(
-            (environment) => environment.id !== environmentId,
-          ),
-          activeEnvironmentId:
-            state.activeEnvironmentId === environmentId
-              ? ""
-              : state.activeEnvironmentId,
-        }));
-        return { success: true };
-      }
-      return {
-        success: false,
-        error:
-          deleteEnvironmentResponse.data.message ||
-          "Failed to delete environment.",
-      };
-    } catch (error) {
-      console.error("Failed to delete environment:", error);
-      let errorMessage = "Failed to delete environment.";
-      if (axios.isAxiosError<ApiResponse<unknown>>(error)) {
-        errorMessage =
-          error.response?.data?.message || error.message || errorMessage;
-      } else if (error instanceof Error) {
-        errorMessage = error.message;
-      }
-      return { success: false, error: errorMessage };
-    }
-  },
-
-  addVariableAction: async (
-    collectionId: string,
-    environmentId: string,
-    request: VariableRequest,
-  ) => {
-    const workspaceId = useWorkspaceStore.getState().activeWorkspaceId;
-    if (!workspaceId) {
-      return { success: false, error: "No active workspace selected" };
-    }
-    try {
-      const addVariableResponse = await api.post<ApiResponse<VariableResponse>>(
-        `/workspaces/${workspaceId}/collections/${collectionId}/environments/${environmentId}/variables`,
-        request,
-      );
-      if (addVariableResponse.data.success && addVariableResponse.data.data) {
-        const newVariable = {
-          id: addVariableResponse.data.data.id,
-          key: addVariableResponse.data.data.key,
-          value: addVariableResponse.data.data.value,
-        };
-        set((state) => ({
-          environments: state.environments.map((environment) => {
-            if (environment.id === environmentId) {
-              return {
-                ...environment,
-                variables: [...environment.variables, newVariable],
-              };
-            }
-            return environment;
-          }),
-        }));
-        return { success: true };
-      }
-      return {
-        success: false,
-        error: addVariableResponse.data.message || "Failed to add variable.",
-      };
-    } catch (error) {
-      console.error("Failed to add variable:", error);
-      let errorMessage = "Failed to add variable.";
-      if (axios.isAxiosError<ApiResponse<unknown>>(error)) {
-        errorMessage =
-          error.response?.data?.message || error.message || errorMessage;
-      } else if (error instanceof Error) {
-        errorMessage = error.message;
-      }
-      return { success: false, error: errorMessage };
-    }
-  },
-
-  updateVariableAction: async (
-    collectionId: string,
-    environmentId: string,
-    variableId: string,
-    request: VariableRequest,
-  ) => {
-    const workspaceId = useWorkspaceStore.getState().activeWorkspaceId;
-    if (!workspaceId) {
-      return { success: false, error: "No active workspace selected" };
-    }
-    try {
-      const updateVariableResponse = await api.put<
-        ApiResponse<VariableResponse>
-      >(`/workspaces/${workspaceId}/collections/${collectionId}/environments/${environmentId}/variables/${variableId}`, request);
-      if (
-        updateVariableResponse.data.success &&
-        updateVariableResponse.data.data
-      ) {
-        const updatedVariable = {
-          id: updateVariableResponse.data.data.id,
-          key: updateVariableResponse.data.data.key,
-          value: updateVariableResponse.data.data.value,
-        };
-        set((state) => ({
-          environments: state.environments.map((environment) => {
-            if (environment.id === environmentId) {
-              return {
-                ...environment,
-                variables: environment.variables.map((variable) =>
-                  variable.id === variableId ? updatedVariable : variable,
-                ),
-              };
-            }
-            return environment;
-          }),
-        }));
-        return { success: true };
-      }
-      return {
-        success: false,
-        error:
-          updateVariableResponse.data.message || "Failed to update variable.",
-      };
-    } catch (error) {
-      console.error("Failed to update variable:", error);
-      let errorMessage = "Failed to update variable.";
-      if (axios.isAxiosError<ApiResponse<unknown>>(error)) {
-        errorMessage =
-          error.response?.data?.message || error.message || errorMessage;
-      } else if (error instanceof Error) {
-        errorMessage = error.message;
-      }
-      return { success: false, error: errorMessage };
-    }
-  },
-
-  deleteVariableAction: async (collectionId: string, environmentId: string, variableId: string) => {
-    const workspaceId = useWorkspaceStore.getState().activeWorkspaceId;
-    if (!workspaceId) {
-      return { success: false, error: "No active workspace selected" };
-    }
-    try {
-      const deleteVariableResponse = await api.delete<ApiResponse<void>>(
-        `/workspaces/${workspaceId}/collections/${collectionId}/environments/${environmentId}/variables/${variableId}`,
-      );
-      if (deleteVariableResponse.data.success) {
-        set((state) => ({
-          environments: state.environments.map((environment) => {
-            if (environment.id === environmentId) {
-              return {
-                ...environment,
-                variables: environment.variables.filter(
-                  (variable) => variable.id !== variableId,
-                ),
-              };
-            }
-            return environment;
-          }),
-        }));
-        return { success: true };
-      }
-      return {
-        success: false,
-        error:
-          deleteVariableResponse.data.message || "Failed to delete variable.",
-      };
-    } catch (error) {
-      console.error("Failed to delete variable:", error);
-      let errorMessage = "Failed to delete variable.";
-      if (axios.isAxiosError<ApiResponse<unknown>>(error)) {
-        errorMessage =
-          error.response?.data?.message || error.message || errorMessage;
-      } else if (error instanceof Error) {
-        errorMessage = error.message;
-      }
-      return { success: false, error: errorMessage };
-    }
-  },
 }));
+
+export default useEnvironmentStore;

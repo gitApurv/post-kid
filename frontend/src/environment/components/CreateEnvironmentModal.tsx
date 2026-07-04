@@ -1,17 +1,22 @@
 import { useState } from "react";
 import { createPortal } from "react-dom";
-import { useEnvironmentStore } from "../store/environmentStore";
 import { FolderPlus, Loader2, X } from "lucide-react";
-import type { EnvironmentColor } from "../types/EnvironmentColor";
-import type { ModalProps } from "../../common/types/ModalProps";
+import type ModalProps from "../../common/types/ModalProps";
+import useEnvironmentStore from "../store/EnvironmentStore";
+import useWorkspaceStore from "../../workspace/store/WorkspaceStore";
+import EnvironmentService from "../service/EnvironmentService";
+import type { EnvironmentColor } from "../types/items/Environment";
 
 export default function CreateEnvironmentModal({
   isOpen,
   onClose,
   collectionId,
 }: ModalProps & { collectionId: string }) {
-  const addEnvironmentAction = useEnvironmentStore(
-    (state) => state.addEnvironmentAction,
+  const upsertEnvironment = useEnvironmentStore(
+    (state) => state.upsertEnvironment,
+  );
+  const setActiveEnvironmentId = useEnvironmentStore(
+    (state) => state.setActiveEnvironmentId,
   );
 
   const [newEnvName, setNewEnvName] = useState("");
@@ -38,12 +43,35 @@ export default function CreateEnvironmentModal({
     setIsLoading(true);
     setError(null);
 
-    const result = await addEnvironmentAction(collectionId, {
-      name: newEnvName.trim(),
-      environmentColor: selectedColor,
-    });
+    const workspaceId = useWorkspaceStore.getState().activeWorkspaceId;
+    if (!workspaceId) {
+      setError("No active workspace selected.");
+      setIsLoading(false);
+      return;
+    }
 
-    if (result.success) {
+    const result = await EnvironmentService.addEnvironment(
+      workspaceId,
+      collectionId,
+      {
+        name: newEnvName.trim(),
+        environmentColor: selectedColor,
+      },
+    );
+
+    if (result.success && result.data) {
+      upsertEnvironment({
+        id: result.data.id,
+        name: result.data.name,
+        color: result.data.environmentColor,
+        variables: Object.fromEntries(
+          result.data.variables.map((v) => [
+            v.id,
+            { id: v.id, key: v.key, value: v.value },
+          ]),
+        ),
+      });
+      setActiveEnvironmentId(result.data.id);
       setNewEnvName("");
       setSelectedColor("EMERALD");
       setIsLoading(false);

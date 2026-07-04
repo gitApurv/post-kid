@@ -14,7 +14,6 @@ import com.apurv.workspace.entity.WorkspaceRole;
 import com.apurv.workspace.repository.WorkspaceRepository;
 import com.apurv.workspace.service.WorkspaceAuthorizationService;
 import com.apurv.collection.repository.CollectionRepository;
-import com.apurv.collection.repository.FolderRepository;
 
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -28,7 +27,6 @@ import lombok.extern.slf4j.Slf4j;
 public class CollectionService {
 
     private final CollectionRepository collectionRepository;
-    private final FolderRepository folderRepository;
     private final WorkspaceRepository workspaceRepository;
     private final WorkspaceAuthorizationService workspaceAuthorizationService;
 
@@ -117,7 +115,6 @@ public class CollectionService {
                 .id(collection.getId())
                 .name(collection.getName())
                 .description(collection.getDescription())
-                .folderCount(folderRepository.countByCollection(collection))
                 .createdAt(collection.getCreatedAt())
                 .updatedAt(collection.getUpdatedAt())
                 .build();

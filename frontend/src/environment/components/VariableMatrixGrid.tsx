@@ -1,6 +1,8 @@
 import { useState, useMemo } from "react";
-import { useEnvironmentStore } from "../store/environmentStore";
 import { Trash2, FolderPlus, Edit3 } from "lucide-react";
+import useEnvironmentStore from "../store/EnvironmentStore";
+import useWorkspaceStore from "../../workspace/store/WorkspaceStore";
+import EnvironmentService from "../service/EnvironmentService";
 
 export default function VariableMatrixGrid({
   collectionId,
@@ -11,18 +13,15 @@ export default function VariableMatrixGrid({
   const activeEnvironmentId = useEnvironmentStore(
     (state) => state.activeEnvironmentId,
   );
-  const addVariableAction = useEnvironmentStore(
-    (state) => state.addVariableAction,
+  const upsertEnvironment = useEnvironmentStore(
+    (state) => state.upsertEnvironment,
   );
-  const updateVariableAction = useEnvironmentStore(
-    (state) => state.updateVariableAction,
-  );
-  const deleteVariableAction = useEnvironmentStore(
-    (state) => state.deleteVariableAction,
-  );
-  const editEnvironmentAction = useEnvironmentStore(
-    (state) => state.editEnvironmentAction,
-  );
+  const upsertVariable = useEnvironmentStore((state) => state.upsertVariable);
+  const removeVariable = useEnvironmentStore((state) => state.removeVariable);
+
+  const activeEnv = activeEnvironmentId
+    ? environments[activeEnvironmentId]
+    : Object.values(environments)[0];
 
   const [editingValues, setEditingValues] = useState<{
     index: number;
@@ -32,11 +31,6 @@ export default function VariableMatrixGrid({
 
   const [isEditingName, setIsEditingName] = useState(false);
   const [editName, setEditName] = useState("");
-
-  const activeEnv =
-    environments.find(
-      (environment) => environment.id === activeEnvironmentId,
-    ) || environments[0];
 
   const [prevEnvId, setPrevEnvId] = useState<string | undefined>(activeEnv?.id);
   const [prevEnvName, setPrevEnvName] = useState<string | undefined>(
@@ -52,9 +46,12 @@ export default function VariableMatrixGrid({
     }
   }
 
-  const filteredVariables = activeEnv?.variables || [];
+  // Convert the variables Record to a stable array for indexed grid rendering
+  const filteredVariables = useMemo(() => {
+    return Object.values(activeEnv?.variables ?? {});
+  }, [activeEnv?.variables]);
 
-  const phantomRow = { id: "phantom", key: "", value: "" };
+  const phantomRow = useMemo(() => ({ id: "phantom", key: "", value: "" }), []);
 
   const displayVariables = useMemo(() => {
     const list = [...filteredVariables, phantomRow];
@@ -79,12 +76,32 @@ export default function VariableMatrixGrid({
       return;
     }
 
-    const res = await editEnvironmentAction(collectionId, activeEnv.id, {
-      name: trimmedName,
-      environmentColor: activeEnv.color,
-    });
+    const workspaceId = useWorkspaceStore.getState().activeWorkspaceId;
+    if (!workspaceId) return;
 
-    if (res && !res.success) {
+    const res = await EnvironmentService.editEnvironment(
+      workspaceId,
+      collectionId,
+      activeEnv.id,
+      {
+        name: trimmedName,
+        environmentColor: activeEnv.color,
+      },
+    );
+
+    if (res.success && res.data) {
+      // Rebuild variables as Record to preserve the normalized shape
+      const variables: typeof activeEnv.variables = {};
+      res.data.variables.forEach((v) => {
+        variables[v.id] = { id: v.id, key: v.key, value: v.value };
+      });
+      upsertEnvironment({
+        id: res.data.id,
+        name: res.data.name,
+        color: res.data.environmentColor,
+        variables,
+      });
+    } else if (!res.success) {
       alert(res.error || "Failed to update environment name.");
       setEditName(activeEnv.name);
     }
@@ -124,24 +141,45 @@ export default function VariableMatrixGrid({
       return;
     }
 
-    let response;
+    let response: { success: boolean; error?: string } | undefined;
+    const workspaceId = useWorkspaceStore.getState().activeWorkspaceId;
+    if (!workspaceId) return;
     if (isPhantomRow) {
-      response = await addVariableAction(collectionId, activeEnv.id, {
-        key: key.trim(),
-        value: value.trim(),
-      });
+      const res = await EnvironmentService.addVariable(
+        workspaceId,
+        collectionId,
+        activeEnv.id,
+        {
+          key: key.trim(),
+          value: value.trim(),
+        },
+      );
+      if (res.success && res.data) {
+        upsertVariable(activeEnv.id, {
+          id: res.data.id,
+          key: res.data.key,
+          value: res.data.value,
+        });
+      }
+      response = res;
     } else {
       const targetVar = filteredVariables[index];
       if (key !== targetVar.key || value !== targetVar.value) {
-        response = await updateVariableAction(
+        const res = await EnvironmentService.updateVariable(
+          workspaceId,
           collectionId,
           activeEnv.id,
           targetVar.id,
-          {
-            key: key.trim(),
-            value: value.trim(),
-          },
+          { key: key.trim(), value: value.trim() },
         );
+        if (res.success && res.data) {
+          upsertVariable(activeEnv.id, {
+            id: res.data.id,
+            key: res.data.key,
+            value: res.data.value,
+          });
+        }
+        response = res;
       }
     }
     if (response && !response.success) {
@@ -156,20 +194,24 @@ export default function VariableMatrixGrid({
     if (isPhantomRow) {
       setEditingValues(null);
     } else {
-      const storeVariables = filteredVariables;
-      if (index >= storeVariables.length) return;
-      const res = await deleteVariableAction(
+      const workspaceId = useWorkspaceStore.getState().activeWorkspaceId;
+      if (!workspaceId || index >= filteredVariables.length) return;
+      const targetVar = filteredVariables[index];
+      const res = await EnvironmentService.deleteVariable(
+        workspaceId,
         collectionId,
         activeEnv.id,
-        storeVariables[index].id,
+        targetVar.id,
       );
-      if (res && !res.success) {
+      if (res.success) {
+        removeVariable(activeEnv.id, targetVar.id);
+      } else {
         alert(res.error || "Failed to delete variable.");
       }
     }
   };
 
-  if (environments.length === 0) {
+  if (Object.keys(environments).length === 0) {
     return (
       <div className="lg:col-span-3">
         <div className="glass-panel rounded-xl p-8 text-center flex flex-col items-center justify-center min-h-[300px] border border-white/5 space-y-3 animate-float">
@@ -207,7 +249,7 @@ export default function VariableMatrixGrid({
                       handleSaveEnvName();
                     } else if (e.key === "Escape") {
                       setIsEditingName(false);
-                      setEditName(activeEnv.name);
+                      setEditName(activeEnv?.name ?? "");
                     }
                   }}
                   autoFocus

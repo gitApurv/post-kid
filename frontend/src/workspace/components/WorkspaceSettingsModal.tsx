@@ -1,6 +1,4 @@
 import { useState } from "react";
-import { useWorkspaceStore } from "../store/workspaceStore";
-import { useAuthStore } from "../../auth/store/authStore";
 import {
   Plus,
   Trash2,
@@ -13,13 +11,15 @@ import {
   UserPlus,
   LogOut,
 } from "lucide-react";
-import type { WorkspaceRole, MemberResponse } from "../types/MemberResponse";
 import md5 from "blueimp-md5";
+import useWorkspaceStore from "../store/WorkspaceStore";
+import useAuthStore from "../../auth/store/AuthStore";
+import WorkspaceService from "../service/WorkspaceService";
+import type MemberResponse from "../types/response/MemberResponse";
+import type { WorkspaceRole } from "../types/response/MemberResponse";
+import type ModalProps from "../../common/types/ModalProps";
 
-export interface WorkspaceSettingsModalProps {
-  isOpen: boolean;
-  onClose: () => void;
-}
+export type WorkspaceSettingsModalProps = ModalProps;
 
 export default function WorkspaceSettingsModal({
   isOpen,
@@ -29,13 +29,11 @@ export default function WorkspaceSettingsModal({
     workspaces,
     activeWorkspaceId,
     createWorkspaceAction,
-    updateWorkspaceAction,
     deleteWorkspaceAction,
-    fetchMembersAction,
-    inviteMemberAction,
-    removeMemberAction,
-    leaveWorkspaceAction,
     setActiveWorkspaceAction,
+    upsertWorkspace,
+    updateMemberCount,
+    removeWorkspace,
   } = useWorkspaceStore();
 
   const { currentUser } = useAuthStore();
@@ -97,12 +95,17 @@ export default function WorkspaceSettingsModal({
     if (!editName.trim() || isSaving) return;
 
     setIsSaving(true);
-    const res = await updateWorkspaceAction(id, {
+    const res = await WorkspaceService.updateWorkspace(id, {
       name: editName.trim(),
       description: editDescription.trim() || undefined,
     });
 
-    if (res.success) {
+    if (res.success && res.data) {
+      upsertWorkspace({
+        ...workspaces[id],
+        name: res.data.name,
+        description: res.data.description || "",
+      });
       setEditingId(null);
       setIsSaving(false);
     } else {
@@ -134,7 +137,7 @@ export default function WorkspaceSettingsModal({
     setInviteRole("MEMBER");
 
     setLoadingMembers((prev) => ({ ...prev, [workspaceId]: true }));
-    const res = await fetchMembersAction(workspaceId);
+    const res = await WorkspaceService.fetchMembers(workspaceId);
     if (res.success && res.data) {
       setMembersMap((prev) => ({ ...prev, [workspaceId]: res.data! }));
       setExpandedWorkspaceId(workspaceId);
@@ -149,7 +152,7 @@ export default function WorkspaceSettingsModal({
     if (!inviteEmail.trim() || isInviting) return;
 
     setIsInviting(true);
-    const res = await inviteMemberAction(workspaceId, {
+    const res = await WorkspaceService.inviteMember(workspaceId, {
       email: inviteEmail.trim(),
       role: inviteRole,
     });
@@ -159,6 +162,7 @@ export default function WorkspaceSettingsModal({
         ...prev,
         [workspaceId]: [...(prev[workspaceId] || []), res.data!],
       }));
+      updateMemberCount(workspaceId, 1);
       setInviteEmail("");
       setInviteRole("MEMBER");
     } else {
@@ -183,27 +187,19 @@ export default function WorkspaceSettingsModal({
 
     if (confirm(confirmMessage)) {
       const res = isSelf
-        ? await leaveWorkspaceAction(workspaceId)
-        : await removeMemberAction(workspaceId, userId);
+        ? await WorkspaceService.leaveWorkspace(workspaceId)
+        : await WorkspaceService.removeMember(workspaceId, userId);
       if (res.success) {
         if (isSelf) {
-          useWorkspaceStore.setState((state) => {
-            const updatedWorkspaces = state.workspaces.filter(
-              (workspace) => workspace.id !== workspaceId,
+          removeWorkspace(workspaceId);
+          let nextActiveId = useWorkspaceStore.getState().activeWorkspaceId;
+          if (nextActiveId === workspaceId) {
+            const remaining = Object.keys(workspaces).filter(
+              (id) => id !== workspaceId,
             );
-            let nextActiveId = state.activeWorkspaceId;
-            if (state.activeWorkspaceId === workspaceId) {
-              nextActiveId =
-                updatedWorkspaces.length > 0 ? updatedWorkspaces[0].id : null;
-            }
-            return {
-              workspaces: updatedWorkspaces,
-              activeWorkspaceId: nextActiveId,
-            };
-          });
-
-          const newActiveId = useWorkspaceStore.getState().activeWorkspaceId;
-          setActiveWorkspaceAction(newActiveId);
+            nextActiveId = remaining[0] ?? null;
+          }
+          await setActiveWorkspaceAction(nextActiveId);
         } else {
           setMembersMap((prev) => ({
             ...prev,
@@ -211,6 +207,7 @@ export default function WorkspaceSettingsModal({
               (m) => m.userId !== userId,
             ),
           }));
+          updateMemberCount(workspaceId, -1);
         }
       } else {
         alert(
@@ -264,7 +261,7 @@ export default function WorkspaceSettingsModal({
               Active Workspaces
             </h4>
             <div className="space-y-3">
-              {workspaces.map((workspace) => {
+              {Object.values(workspaces).map((workspace) => {
                 const isEditingThis = editingId === workspace.id;
                 const isCurrentActive = workspace.id === activeWorkspaceId;
                 const isMembersExpanded = expandedWorkspaceId === workspace.id;

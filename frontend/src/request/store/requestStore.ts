@@ -1,226 +1,327 @@
 import { create } from "zustand";
-import api from "../../config/axios";
-import axios from "axios";
-import type { ApiResponse } from "../../common/types/ApiResponse";
-import type { ExecutionResponse } from "../types/ExecutionResponse";
-import { useCollectionStore } from "../../collection/store/collectionStore";
-import type { RequestState } from "../types/RequestState";
-import { useWorkspaceStore } from "../../workspace/store/workspaceStore";
+import useWorkspaceStore from "../../workspace/store/WorkspaceStore";
+import useEnvironmentStore from "../../environment/store/EnvironmentStore";
+import RequestService from "../service/RequestService";
+import type RequestItemRequest from "../types/request/RequestItemRequest";
+import type RequestItemResponse from "../types/response/RequestItemResponse";
+import type RequestItem from "../types/items/RequestItem";
+import type RequestState from "../types/state/RequestState";
+import type Variable from "../../environment/types/items/Variable";
 
+// ── Utility: resolve {{variable}} placeholders against active environment ──
+function resolveVariables(
+  text: string,
+  variables: Record<string, Variable>,
+): string {
+  return text.replace(/\{\{(\w+)\}\}/g, (_, key) => {
+    const match = Object.values(variables).find((v) => v.key === key);
+    return match ? match.value : `{{${key}}}`; // leave unresolved if no match
+  });
+}
 
-export const useRequestStore = create<RequestState>((set, get) => ({
+// ── Utility: serialize RequestItem → RequestItemRequest payload for API ──
+function serializeRequest(request: RequestItem): RequestItemRequest {
+  const baseUrl = request.url.split("?")[0];
+  const activeParams = request.params.filter(
+    (param) => param.active && param.key,
+  );
+  const queryString = activeParams
+    .map(
+      (param) =>
+        `${encodeURIComponent(param.key)}=${encodeURIComponent(param.value)}`,
+    )
+    .join("&");
+  const fullUrl = queryString ? `${baseUrl}?${queryString}` : baseUrl;
+
+  const headers: Record<string, string> = Object.fromEntries(
+    request.headers
+      .filter((header) => header.active && header.key)
+      .map((header) => [header.key, header.value]),
+  );
+
+  return {
+    name: request.name,
+    method: request.method,
+    url: fullUrl,
+    headers,
+    body: request.bodyType === "none" ? null : request.bodyJson || null,
+    authType: request.authType,
+    authValue: request.authValue,
+    timeoutMs: request.timeoutMs ?? 5000,
+  };
+}
+
+// ── Utility: parse query params out of a URL string ──
+function parseParams(
+  url: string,
+): { key: string; value: string; active: boolean }[] {
+  const queryString = url.split("?")[1] || "";
+  return queryString
+    .split("&")
+    .filter(Boolean)
+    .map((param) => {
+      const [key, value] = param.split("=");
+      return { key, value: decodeURIComponent(value || ""), active: true };
+    });
+}
+
+// ── Utility: flatten Record<string, string> headers into structured array ──
+function parseHeaders(
+  headers: Record<string, string> | null,
+): { key: string; value: string; active: boolean }[] {
+  if (!headers) return [];
+  return Object.entries(headers).map(([key, value]) => ({
+    key,
+    value,
+    active: true,
+  }));
+}
+
+// ── Utility: map RequestItemResponse DTO → RequestItem ──
+export function mapResponseToRequestItem(
+  res: RequestItemResponse,
+  collectionId: string,
+  folderId: string | null,
+): RequestItem {
+  return {
+    id: res.id,
+    name: res.name,
+    method: res.method,
+    url: res.url || "",
+    params: parseParams(res.url || ""),
+    headers: parseHeaders(res.headers),
+    bodyType: res.body ? "json" : "none",
+    bodyJson: res.body || "",
+    authType: res.authType || "none",
+    authValue: res.authValue || {},
+    folderId: folderId,
+    collectionId: collectionId,
+    timeoutMs: res.timeoutMs || 5000,
+  };
+}
+
+const useRequestStore = create<RequestState>((set, get) => ({
+  requests: {},
   activeRequestId: null,
   activeRequest: null,
   activeCollectionId: null,
   isExecuting: false,
   lastResponse: null,
 
-  setActiveRequestDirectlyAction: (req) => {
+  // ─── Mutations ─────────────────────────────────────────────────
+
+  upsertRequest: (requestItem) =>
+    set((state) => ({
+      requests: { ...state.requests, [requestItem.id]: requestItem },
+    })),
+
+  upsertRequests: (requestsList) =>
+    set((state) => ({
+      requests: {
+        ...state.requests,
+        ...Object.fromEntries(
+          requestsList.map((requestItem) => [requestItem.id, requestItem]),
+        ),
+      },
+    })),
+
+  upsertRequestsFromResponse: (responseList, collectionId, folderId) => {
+    const mapped = responseList.map((response) =>
+      mapResponseToRequestItem(response, collectionId, folderId ?? null),
+    );
+    get().upsertRequests(mapped);
+  },
+
+  removeRequest: (requestId) =>
+    set((state) => {
+      const remainingRequests = { ...state.requests };
+      delete remainingRequests[requestId];
+      return { requests: remainingRequests };
+    }),
+
+  removeRequestsByFolderIds: (folderIds) => {
+    const idSet = new Set(folderIds);
+    set((state) => ({
+      requests: Object.fromEntries(
+        Object.entries(state.requests).filter(
+          ([, r]) => !r.folderId || !idSet.has(r.folderId),
+        ),
+      ),
+    }));
+  },
+
+  removeRequestsByCollectionId: (collectionId) =>
+    set((state) => ({
+      requests: Object.fromEntries(
+        Object.entries(state.requests).filter(
+          ([, requestItem]) => requestItem.collectionId !== collectionId,
+        ),
+      ),
+    })),
+
+  reset: () =>
     set({
-      activeRequestId: req ? req.id : null,
-      activeRequest: req,
+      requests: {},
+      activeRequestId: null,
+      activeRequest: null,
       activeCollectionId: null,
+      isExecuting: false,
       lastResponse: null,
-    });
+    }),
+
+  setActiveRequest: (activeRequest) =>
+    set({
+      activeRequestId: activeRequest ? activeRequest.id : null,
+      activeRequest,
+    }),
+
+  updateActiveRequestFields: (fields) =>
+    set((state) => {
+      if (!state.activeRequest) return state;
+      return {
+        activeRequest: {
+          ...state.activeRequest,
+          ...fields,
+        },
+      };
+    }),
+
+  setExecuting: (isExecuting) => set({ isExecuting }),
+
+  setLastResponse: (lastResponse) => set({ lastResponse }),
+
+  // ─── Actions ─────────────────────────────────────────────────
+
+  setActiveRequestDirectlyAction: (requestItem) => {
+    get().setActiveRequest(requestItem);
+    set({ activeCollectionId: null });
+    get().setLastResponse(null);
     return { success: true };
   },
 
-  setActiveCollectionAction: (id) => {
+  setActiveCollectionAction: (collectionId) => {
     set({
-      activeCollectionId: id,
+      activeCollectionId: collectionId,
       activeRequestId: null,
       activeRequest: null,
-      lastResponse: null,
     });
+    get().setLastResponse(null);
     return { success: true };
   },
 
   updateActiveRequestAction: async (fields) => {
-    const active = get().activeRequest;
-    if (!active)
+    const activeRequest = get().activeRequest;
+    if (!activeRequest)
       return { success: false, error: "No active request to update" };
 
-    const workspaceId = useWorkspaceStore.getState().activeWorkspaceId;
-    if (!workspaceId) {
+    const activeWorkspaceId = useWorkspaceStore.getState().activeWorkspaceId;
+    if (!activeWorkspaceId) {
       return { success: false, error: "No active workspace selected" };
     }
 
-    const updated = { ...active, ...fields };
-    set({ activeRequest: updated });
+    get().updateActiveRequestFields(fields);
+    const updatedRequest = { ...activeRequest, ...fields };
 
-    let url = updated.url.split("?")[0];
-    const query = updated.params
-      .filter((param) => param.active && param.key)
-      .map((param) => `${param.key}=${encodeURIComponent(param.value)}`)
-      .join("&");
-    if (query) {
-      url += `?${query}`;
+    const payload = serializeRequest(updatedRequest);
+
+    const response = await RequestService.updateRequest(
+      activeWorkspaceId,
+      updatedRequest.collectionId!,
+      updatedRequest.folderId || null,
+      updatedRequest.id,
+      payload,
+    );
+
+    if (!response.success) {
+      get().updateActiveRequestFields(activeRequest);
+      return response;
     }
 
-    const headersMap: Record<string, string> = {};
-    updated.headers.forEach((header) => {
-      if (header.active && header.key) {
-        headersMap[header.key] = header.value;
-      }
-    });
+    const canonical = mapResponseToRequestItem(
+      response.data,
+      updatedRequest.collectionId!,
+      updatedRequest.folderId ?? null,
+    );
+    get().upsertRequest(canonical);
+    get().setActiveRequest(canonical);
+
+    return { success: true };
+  },
+
+  executeRequestAction: async () => {
+    const request = get().activeRequest;
+    if (!request) return { success: false, error: "No active request" };
+
+    const workspaceId = useWorkspaceStore.getState().activeWorkspaceId;
+    if (!workspaceId)
+      return { success: false, error: "No active workspace selected" };
+
+    const { environments, activeEnvironmentId } =
+      useEnvironmentStore.getState();
+    const activeEnv = environments[activeEnvironmentId];
+    const variables = activeEnv?.variables ?? {};
+
+    const resolvedUrl = resolveVariables(request.url, variables);
+    const resolvedHeaders = Object.fromEntries(
+      request.headers
+        .filter((header) => header.active && header.key)
+        .map((header) => [
+          resolveVariables(header.key, variables),
+          resolveVariables(header.value, variables),
+        ]),
+    );
+    const resolvedBody =
+      request.bodyType !== "none"
+        ? resolveVariables(request.bodyJson || "", variables)
+        : "";
 
     const payload = {
-      name: updated.name,
-      method: updated.method,
-      url,
-      body: updated.bodyJson,
-      headers: headersMap,
-      authType: updated.authType,
-      authValue: updated.authValue,
-      timeoutMs: updated.timeoutMs,
+      url: resolvedUrl,
+      method: request.method,
+      headers: resolvedHeaders,
+      body: resolvedBody,
+      authType: request.authType,
+      authValue: request.authValue,
+      timeoutSeconds: Math.floor((request.timeoutMs ?? 5000) / 1000),
     };
 
-    const targetUrl = updated.folderId
-      ? `/workspaces/${workspaceId}/collections/${updated.collectionId}/folders/${updated.folderId}/requests/${updated.id}`
-      : `/workspaces/${workspaceId}/collections/${updated.collectionId}/requests/${updated.id}`;
+    get().setExecuting(true);
+    get().setLastResponse(null);
 
-    try {
-      await api.put(targetUrl, payload);
-
-      useCollectionStore.getState().syncRequestInTreeAction(updated);
-      return { success: true };
-    } catch (error) {
-      console.error("Failed to save active request updates:", error);
-      let errorMessage = "Failed to update request details.";
-      if (axios.isAxiosError(error)) {
-        errorMessage = error.response?.data?.message || error.message || errorMessage;
-      } else if (error instanceof Error) {
-        errorMessage = error.message;
-      }
-      return { success: false, error: errorMessage };
-    }
-  },
-
-  executeRequestAction: async (activeEnvironmentId, environments) => {
-    const req = get().activeRequest;
-    if (!req) return { success: false, error: "No active request to execute" };
-
-    const wId = useWorkspaceStore.getState().activeWorkspaceId;
-    if (!wId) {
-      return { success: false, error: "No active workspace selected" };
-    }
-
-    set({ isExecuting: true });
-
-    const activeEnv = environments.find(
-      (environment: any) => environment.id === activeEnvironmentId,
+    const res = await RequestService.executeRequest(
+      workspaceId,
+      request.collectionId!,
+      request.folderId ?? null,
+      payload,
     );
-    let resolvedUrl = req.url;
-    if (activeEnv) {
-      activeEnv.variables.forEach((variable: any) => {
-        if (variable.key) {
-          resolvedUrl = resolvedUrl.replaceAll(
-            `{{${variable.key}}}`,
-            variable.value,
-          );
-        }
+
+    get().setExecuting(false);
+
+    if (!res.success) {
+      get().setLastResponse({
+        status: 500,
+        statusText: "Error",
+        latency: 0,
+        size: 0,
+        headers: {},
+        body: res.error ?? "Request failed",
       });
+      return res;
     }
 
-    const headersMap: Record<string, string> = {};
-    req.headers.forEach((header) => {
-      if (header.active && header.key) {
-        let val = header.value;
-        if (activeEnv) {
-          activeEnv.variables.forEach((variable: any) => {
-            if (variable.key) {
-              val = val.replaceAll(`{{${variable.key}}}`, variable.value);
-            }
-          });
-        }
-        headersMap[header.key] = val;
-      }
+    const exec = res.data;
+
+    get().setLastResponse({
+      status: exec.statusCode,
+      statusText: exec.success ? "OK" : "Error",
+      latency: exec.durationMs,
+      size: exec.responseBody ? new Blob([exec.responseBody]).size : 0,
+      headers: exec.responseHeaders ?? {},
+      body: exec.errorMessage ?? exec.responseBody ?? "",
     });
 
-    const timeoutSeconds = Math.max(
-      1,
-      Math.round((req.timeoutMs || 5000) / 1000),
-    );
-
-    const executeUrl = req.folderId
-      ? `/workspaces/${wId}/collections/${req.collectionId}/folders/${req.folderId}/requests/execute`
-      : `/workspaces/${wId}/collections/${req.collectionId}/requests/execute`;
-
-    try {
-      const requestExecuteRes = await api.post<ApiResponse<ExecutionResponse>>(
-        executeUrl,
-        {
-          url: resolvedUrl,
-          method: req.method,
-          headers: headersMap,
-          body: req.bodyJson || "",
-          authType: req.authType,
-          authValue: req.authValue,
-          timeoutSeconds: timeoutSeconds,
-        },
-      );
-
-      if (requestExecuteRes.data.success && requestExecuteRes.data.data) {
-        const responseData = requestExecuteRes.data.data;
-        const headersRecord: Record<string, string> = {};
-        if (responseData.responseHeaders) {
-          Object.entries(responseData.responseHeaders).forEach(
-            ([key, value]) => {
-              headersRecord[key] = value as string;
-            },
-          );
-        }
-
-        set({
-          isExecuting: false,
-          lastResponse: {
-            status: responseData.statusCode,
-            statusText: responseData.success ? "OK" : "Error",
-            latency: responseData.durationMs,
-            size: `${(JSON.stringify(responseData.responseBody || "").length / 1024).toFixed(2)} KB`,
-            headers: headersRecord,
-            body: responseData.responseBody || "",
-          },
-        });
-        return { success: true };
-      } else {
-        const errorMessage =
-          requestExecuteRes.data.message || "Execution failed";
-        set({
-          isExecuting: false,
-          lastResponse: {
-            status: 500,
-            statusText: "Error",
-            latency: 0,
-            size: "0 B",
-            headers: {},
-            body: errorMessage,
-          },
-        });
-        return { success: false, error: errorMessage };
-      }
-    } catch (error) {
-      console.error("Execution failed:", error);
-      let status = 500;
-      let body = "Execution failed";
-      if (axios.isAxiosError(error)) {
-        status = error.response?.status || status;
-        body = error.response?.data?.message || error.message || body;
-      } else if (error instanceof Error) {
-        body = error.message;
-      }
-      set({
-        isExecuting: false,
-        lastResponse: {
-          status,
-          statusText: "Error",
-          latency: 0,
-          size: "0 B",
-          headers: {},
-          body,
-        },
-      });
-      return { success: false, error: body };
-    }
+    return { success: true };
   },
 }));
+
+export default useRequestStore;

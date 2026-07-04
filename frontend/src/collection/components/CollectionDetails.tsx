@@ -1,8 +1,4 @@
 import { useState, useEffect } from "react";
-import { useRequestStore } from "../../request/store/requestStore";
-import { useCollectionStore } from "../store/collectionStore";
-import { useEnvironmentStore } from "../../environment/store/environmentStore";
-import { useWorkspaceStore } from "../../workspace/store/workspaceStore";
 import {
   Calendar,
   User,
@@ -16,15 +12,18 @@ import {
 import EnvironmentScopeList from "../../environment/components/EnvironmentScopeList";
 import VariableMatrixGrid from "../../environment/components/VariableMatrixGrid";
 import CreateEnvironmentModal from "../../environment/components/CreateEnvironmentModal";
+import useWorkspaceStore from "../../workspace/store/WorkspaceStore";
+import useCollectionStore from "../store/CollectionStore";
+import useRequestStore from "../../request/store/RequestStore";
+import useEnvironmentStore from "../../environment/store/EnvironmentStore";
+import { useRootFolderCount } from "../store/selectors";
+import CollectionService from "../service/CollectionService";
 
 export default function CollectionDetails() {
   const activeCollectionId = useRequestStore(
     (state) => state.activeCollectionId,
   );
   const collections = useCollectionStore((state) => state.collections);
-  const updateCollectionAction = useCollectionStore(
-    (state) => state.updateCollectionAction,
-  );
   const fetchEnvironments = useEnvironmentStore(
     (state) => state.fetchEnvironmentsAction,
   );
@@ -32,11 +31,14 @@ export default function CollectionDetails() {
   const activeWorkspaceId = useWorkspaceStore(
     (state) => state.activeWorkspaceId,
   );
-  const activeWorkspace = workspaces.find((w) => w.id === activeWorkspaceId);
+  const activeWorkspace = activeWorkspaceId
+    ? workspaces[activeWorkspaceId]
+    : undefined;
 
-  const collection = collections.find(
-    (collection) => collection.id === activeCollectionId,
-  );
+  const collection = activeCollectionId
+    ? collections[activeCollectionId]
+    : undefined;
+  const folderCount = useRootFolderCount(collection?.id || "");
 
   const [isEditing, setIsEditing] = useState(false);
   const [editName, setEditName] = useState("");
@@ -51,9 +53,15 @@ export default function CollectionDetails() {
     }
   }, [activeCollectionId, fetchEnvironments]);
 
-  const [prevCollectionId, setPrevCollectionId] = useState<string | undefined>(collection?.id);
-  const [prevCollectionName, setPrevCollectionName] = useState<string | undefined>(collection?.name);
-  const [prevCollectionDesc, setPrevCollectionDesc] = useState<string | undefined>(collection?.description);
+  const [prevCollectionId, setPrevCollectionId] = useState<string | undefined>(
+    collection?.id,
+  );
+  const [prevCollectionName, setPrevCollectionName] = useState<
+    string | undefined
+  >(collection?.name);
+  const [prevCollectionDesc, setPrevCollectionDesc] = useState<
+    string | undefined
+  >(collection?.description ?? undefined);
 
   if (
     collection?.id !== prevCollectionId ||
@@ -62,7 +70,7 @@ export default function CollectionDetails() {
   ) {
     setPrevCollectionId(collection?.id);
     setPrevCollectionName(collection?.name);
-    setPrevCollectionDesc(collection?.description);
+    setPrevCollectionDesc(collection?.description ?? undefined);
     if (collection) {
       setEditName(collection.name);
       setEditDescription(collection.description || "");
@@ -83,16 +91,27 @@ export default function CollectionDetails() {
 
   const handleSave = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (!activeWorkspaceId) return;
 
     setIsSaving(true);
     setErrorMsg("");
-    const res = await updateCollectionAction(collection.id, {
-      name: editName.trim(),
-      description: editDescription.trim(),
-    });
+    const res = await CollectionService.updateCollection(
+      activeWorkspaceId,
+      collection.id,
+      {
+        name: editName.trim(),
+        description: editDescription.trim(),
+      },
+    );
     setIsSaving(false);
 
     if (res.success) {
+      useCollectionStore.getState().upsertCollection({
+        ...collection,
+        name: res.data.name,
+        description: res.data.description || "",
+        updatedAt: res.data.updatedAt,
+      });
       setIsEditing(false);
     } else {
       setErrorMsg(res.error || "Failed to update collection.");
@@ -236,7 +255,7 @@ export default function CollectionDetails() {
               Folders
             </p>
             <p className="text-xs font-semibold text-slate-200 mt-0.5">
-              {collection.folderCount || 0}
+              {folderCount}
             </p>
           </div>
         </div>

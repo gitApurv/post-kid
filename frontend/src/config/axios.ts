@@ -1,7 +1,7 @@
 import axios from "axios";
-import type { ApiResponse } from "../common/types/ApiResponse";
-import type { AuthResponse } from "../auth/types/AuthResponse";
-import type { TokenRefreshRequest } from "../auth/types/TokenRefreshRequest";
+import type ApiResponse from "../common/types/ApiResponse";
+import type AuthResponse from "../auth/types/response/AuthResponse";
+import type TokenRefreshRequest from "../auth/types/request/TokenRefreshRequest";
 
 const baseURL =
   import.meta.env.VITE_API_BASE_URL || "http://localhost:8080/api/v1";

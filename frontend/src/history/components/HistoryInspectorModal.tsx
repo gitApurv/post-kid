@@ -1,7 +1,5 @@
 import { useState } from "react";
 import { createPortal } from "react-dom";
-import { useHistoryStore } from "../store/historyStore";
-import type { HistoryInspectorModalProps } from "../types/HistoryInspectorModalProps";
 import {
   X,
   Trash2,
@@ -12,14 +10,15 @@ import {
   Info,
   Loader2,
 } from "lucide-react";
+import type HistoryInspectorModalProps from "../types/props/HistoryInspectorModalProps";
+import useHistoryStore from "../store/HistoryStore";
+import HistoryService from "../service/HistoryService";
 
 export default function HistoryInspectorModal({
   item,
   onClose,
 }: HistoryInspectorModalProps) {
-  const deleteHistoryAction = useHistoryStore(
-    (state) => state.deleteHistoryAction,
-  );
+  const removeHistory = useHistoryStore((state) => state.removeHistory);
 
   const [error, setError] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
@@ -56,59 +55,61 @@ export default function HistoryInspectorModal({
     return "text-brand-error bg-brand-error/5 border-brand-error/10";
   };
 
-  const formatHeaders = (headers: any) => {
+  const formatHeaders = (headers: unknown) => {
     if (!headers) return "None";
-    let parsed = headers;
+    let parsed: unknown = headers;
     if (typeof headers === "string") {
       try {
-        parsed = JSON.parse(headers);
+        parsed = JSON.parse(headers) as unknown;
       } catch {
         return headers;
       }
     }
-    if (
-      !parsed ||
-      typeof parsed !== "object" ||
-      Object.keys(parsed).length === 0
-    ) {
+    if (!parsed || typeof parsed !== "object") {
       return "None";
     }
-    return Object.entries(parsed)
-      .map(([k, v]) => `${k}: ${v}`)
-      .join("\n");
+    const entries = Object.entries(parsed as Record<string, unknown>);
+    if (entries.length === 0) {
+      return "None";
+    }
+    return entries.map(([k, v]) => `${k}: ${String(v)}`).join("\n");
   };
 
-  const formatBody = (body: any) => {
+  const formatBody = (body: unknown) => {
     if (!body) return "";
     try {
       if (typeof body === "object") {
         return JSON.stringify(body, null, 2);
       }
-      const parsed = JSON.parse(body);
-      return JSON.stringify(parsed, null, 2);
+      if (typeof body === "string") {
+        const parsed = JSON.parse(body) as unknown;
+        return JSON.stringify(parsed, null, 2);
+      }
+      return String(body);
     } catch {
-      return body;
+      return String(body);
     }
   };
 
-  const getAuthValueObject = (val: any) => {
+  const getAuthValueObject = (val: unknown) => {
     if (!val) return null;
     if (typeof val === "string") {
       try {
-        return JSON.parse(val);
+        return JSON.parse(val) as Record<string, string>;
       } catch {
         return null;
       }
     }
-    return val;
+    return val as Record<string, string>;
   };
 
   const handleDelete = async () => {
     if (!item || isLoading) return;
     setIsLoading(true);
     setError(null);
-    const res = await deleteHistoryAction(item.id);
+    const res = await HistoryService.deleteHistory(item.id);
     if (res.success) {
+      removeHistory(item.id);
       onClose();
     } else {
       setError(res.error || "Failed to delete history item.");

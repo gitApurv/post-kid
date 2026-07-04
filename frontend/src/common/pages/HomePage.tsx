@@ -1,9 +1,9 @@
-import { useRequestStore } from "../../request/store/requestStore";
+import { Sparkles } from "lucide-react";
+import useRequestStore from "../../request/store/RequestStore";
 import CollectionSidebar from "../../collection/components/CollectionSidebar";
 import RequestBuilder from "../../request/components/RequestBuilder";
 import ResponseViewer from "../../request/components/ResponseViewer";
 import CollectionDetails from "../../collection/components/CollectionDetails";
-import { Sparkles } from "lucide-react";
 
 export default function HomePage() {
   const activeRequest = useRequestStore((state) => state.activeRequest);

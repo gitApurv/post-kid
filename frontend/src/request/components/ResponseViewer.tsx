@@ -1,5 +1,4 @@
 import { useState, useEffect, useMemo, useCallback } from "react";
-import { useRequestStore } from "../store/requestStore";
 import {
   Copy,
   Check,
@@ -9,6 +8,7 @@ import {
   AlertCircle,
   Code,
 } from "lucide-react";
+import useRequestStore from "../store/RequestStore";
 
 export default function ResponseViewer() {
   const isExecuting = useRequestStore((state) => state.isExecuting);
@@ -23,9 +23,14 @@ export default function ResponseViewer() {
 
   useEffect(() => {
     if (activeTab === "preview" && previewCounter > 0) {
-      setCompilingPreview(true);
+      const startTimer = setTimeout(() => {
+        setCompilingPreview(true);
+      }, 0);
       const timer = setTimeout(() => setCompilingPreview(false), 1000);
-      return () => clearTimeout(timer);
+      return () => {
+        clearTimeout(startTimer);
+        clearTimeout(timer);
+      };
     }
   }, [previewCounter, activeTab]);
 
@@ -40,7 +45,7 @@ export default function ResponseViewer() {
         "Clipboard write failed — document may not be focused or permission denied.",
       );
     }
-  }, [lastResponse?.body]);
+  }, [lastResponse]);
 
   const getStatusColor = (code: number) => {
     if (code >= 200 && code < 300)

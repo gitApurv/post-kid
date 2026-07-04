@@ -1,4 +1,4 @@
-export interface ModalProps {
+export default interface ModalProps {
   isOpen: boolean;
   onClose: () => void;
 }

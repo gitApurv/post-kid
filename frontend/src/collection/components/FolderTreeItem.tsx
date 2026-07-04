@@ -1,7 +1,5 @@
-import { useCollectionStore } from "../store/collectionStore";
-import RequestTreeItem from "./RequestTreeItem";
 import {
-  Folder,
+  Folder as FolderIcon,
   FolderOpen,
   ChevronRight,
   ChevronDown,
@@ -10,7 +8,14 @@ import {
   FilePlus,
   RefreshCw,
 } from "lucide-react";
-import type { FolderTreeItemProps } from "../types/FolderTreeItemProps";
+import type FolderTreeItemProps from "../types/props/FolderTreeItemProps";
+import RequestTreeItem from "./RequestTreeItem";
+import useWorkspaceStore from "../../workspace/store/WorkspaceStore";
+import useFolderStore from "../store/FolderStore";
+import useRequestStore from "../../request/store/RequestStore";
+import { useChildFolders, useFolderRequests } from "../store/selectors";
+import RequestService from "../../request/service/RequestService";
+import FolderService from "../service/FolderService";
 
 export default function FolderTreeItem({
   folder,
@@ -19,32 +24,67 @@ export default function FolderTreeItem({
   onAddFolder,
   onAddRequest,
 }: FolderTreeItemProps) {
-  const deleteRequestAction = useCollectionStore(
-    (state) => state.deleteRequestAction,
-  );
-  const deleteFolderAction = useCollectionStore(
-    (state) => state.deleteFolderAction,
-  );
-  const fetchFolderDetailsAction = useCollectionStore(
-    (state) => state.fetchFolderDetailsAction,
+  const activeWorkspaceId = useWorkspaceStore(
+    (state) => state.activeWorkspaceId,
   );
 
-  const isExpanded = useCollectionStore(
+  const deleteFolderAction = useFolderStore(
+    (state) => state.deleteFolderAction,
+  );
+  const isExpanded = useFolderStore(
     (state) => !!state.expandedFolderIds[folder.id],
   );
-  const toggleFolderExpansionAction = useCollectionStore(
-    (state) => state.toggleFolderExpansionAction,
+  const toggleFolderExpansion = useFolderStore(
+    (state) => state.toggleFolderExpansion,
   );
+
+  const childFolders = useChildFolders(folder.id);
+  const folderRequests = useFolderRequests(folder.id);
 
   const handleExpandToggle = async (e: React.MouseEvent) => {
     e.stopPropagation();
     const nextState = !isExpanded;
-    toggleFolderExpansionAction(folder.id, nextState);
+    toggleFolderExpansion(folder.id, nextState);
     if (nextState && !folder.isLoaded && !folder.isLoading) {
-      const response = await fetchFolderDetailsAction(collectionId, folder.id);
-      if (response && !response.success) {
-        alert(response.error || "Failed to fetch folder details.");
+      const workspaceId = useWorkspaceStore.getState().activeWorkspaceId;
+      if (!workspaceId) return;
+
+      useFolderStore.getState().setFolderLoading(folder.id, true);
+
+      const [subfoldersRes, requestsRes] = await Promise.all([
+        FolderService.fetchSubfolders(workspaceId, collectionId, folder.id),
+        FolderService.fetchFolderRequests(workspaceId, collectionId, folder.id),
+      ]);
+
+      if (!subfoldersRes.success) {
+        useFolderStore.getState().setFolderLoading(folder.id, false);
+        alert(subfoldersRes.error || "Failed to fetch subfolders.");
+        return;
       }
+      if (!requestsRes.success) {
+        useFolderStore.getState().setFolderLoading(folder.id, false);
+        alert(requestsRes.error || "Failed to fetch folder requests.");
+        return;
+      }
+
+      useFolderStore.getState().upsertFolders(
+        subfoldersRes.data.map((f) => ({
+          id: f.id,
+          name: f.name,
+          collectionId,
+          parentFolderId: folder.id,
+          isLoaded: false,
+        })),
+      );
+      useRequestStore
+        .getState()
+        .upsertRequestsFromResponse(requestsRes.data, collectionId, folder.id);
+
+      useFolderStore.getState().upsertFolder({
+        ...folder,
+        isLoaded: true,
+        isLoading: false,
+      });
     }
   };
 
@@ -68,13 +108,16 @@ export default function FolderTreeItem({
         `Are you sure you want to permanently delete API request '${name}'?`,
       )
     ) {
-      const response = await deleteRequestAction(
+      const response = await RequestService.deleteFolderRequest(
+        activeWorkspaceId!,
         collectionId,
         folder.id,
         reqId,
       );
       if (response && !response.success) {
         alert(response.error || "Failed to delete request.");
+      } else {
+        useRequestStore.getState().removeRequest(reqId);
       }
     }
   };
@@ -98,7 +141,7 @@ export default function FolderTreeItem({
         {isExpanded ? (
           <FolderOpen className="w-3.5 h-3.5 text-brand-primary shrink-0" />
         ) : (
-          <Folder className="w-3.5 h-3.5 text-slate-500 shrink-0" />
+          <FolderIcon className="w-3.5 h-3.5 text-slate-500 shrink-0" />
         )}
 
         <span className="text-xs font-medium truncate flex-1">
@@ -148,38 +191,35 @@ export default function FolderTreeItem({
       {isExpanded && (
         <div className="space-y-1">
           {/* Subfolders */}
-          {folder.subFolders &&
-            folder.subFolders.map((subFolder) => (
-              <FolderTreeItem
-                key={subFolder.id}
-                folder={subFolder}
-                collectionId={collectionId}
-                level={level + 1}
-                onAddFolder={onAddFolder}
-                onAddRequest={onAddRequest}
-              />
-            ))}
+          {childFolders.map((subFolder) => (
+            <FolderTreeItem
+              key={subFolder.id}
+              folder={subFolder}
+              collectionId={collectionId}
+              level={level + 1}
+              onAddFolder={onAddFolder}
+              onAddRequest={onAddRequest}
+            />
+          ))}
 
           {/* Requests */}
           <div
             style={{ paddingLeft: `${(level + 1) * 12 + 16}px` }}
             className="space-y-0.5"
           >
-            {folder.requestItems &&
-              folder.requestItems.map((request) => (
-                <RequestTreeItem
-                  key={request.id}
-                  request={request}
-                  onDelete={handleDeleteRequest}
-                />
-              ))}
+            {folderRequests.map((request) => (
+              <RequestTreeItem
+                key={request.id}
+                request={request}
+                onDelete={handleDeleteRequest}
+              />
+            ))}
 
-            {(!folder.subFolders || folder.subFolders.length === 0) &&
-              (!folder.requestItems || folder.requestItems.length === 0) && (
-                <div className="text-[10px] text-slate-600 italic py-1 pl-4">
-                  Empty suite
-                </div>
-              )}
+            {childFolders.length === 0 && folderRequests.length === 0 && (
+              <div className="text-[10px] text-slate-600 italic py-1 pl-4">
+                Empty suite
+              </div>
+            )}
           </div>
         </div>
       )}

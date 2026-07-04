@@ -141,7 +141,6 @@ public class FolderService {
                 return FolderResponse.builder()
                                 .id(savedFolder.getId())
                                 .name(savedFolder.getName())
-                                .subFolderCount(folderRepository.countByParentFolder(savedFolder))
                                 .createdAt(savedFolder.getCreatedAt())
                                 .build();
         }

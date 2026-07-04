@@ -1,12 +1,11 @@
 import { useState } from "react";
-import { useHistoryStore } from "../store/historyStore";
-import type { HistoryListProps } from "../types/HistoryListProps";
 import { Calendar, Trash2, Info, Loader2 } from "lucide-react";
+import type HistoryListProps from "../types/props/HistoryListProps";
+import useHistoryStore from "../store/HistoryStore";
+import HistoryService from "../service/HistoryService";
 
 export default function HistoryList({ items, onInspect }: HistoryListProps) {
-  const deleteHistoryAction = useHistoryStore(
-    (state) => state.deleteHistoryAction,
-  );
+  const removeHistory = useHistoryStore((state) => state.removeHistory);
 
   const [deletingIds, setDeletingIds] = useState<Record<string, boolean>>({});
   const [error, setError] = useState<string | null>(null);
@@ -73,8 +72,10 @@ export default function HistoryList({ items, onInspect }: HistoryListProps) {
     if (deletingIds[id]) return;
     setDeletingIds((prev) => ({ ...prev, [id]: true }));
     setError(null);
-    const response = await deleteHistoryAction(id);
-    if (!response.success) {
+    const response = await HistoryService.deleteHistory(id);
+    if (response.success) {
+      removeHistory(id);
+    } else {
       setError(response.error || "Failed to delete history item.");
       setDeletingIds((prev) => ({ ...prev, [id]: false }));
     }

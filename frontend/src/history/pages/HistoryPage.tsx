@@ -1,39 +1,53 @@
-import { useEffect, useState } from "react";
-import { useHistoryStore } from "../store/historyStore";
-import type { HistoryItem } from "../types/HistoryItem";
+import { useEffect, useState, useMemo } from "react";
 import { History, Trash2, Loader2, AlertCircle } from "lucide-react";
-import HistoryList from "../components/HistoryList";
-import ClearHistoryModal from "../components/ClearHistoryModal";
 import HistoryInspectorModal from "../components/HistoryInspectorModal";
+import ClearHistoryModal from "../components/ClearHistoryModal";
+import HistoryList from "../components/HistoryList";
+import type HistoryItem from "../types/items/HistoryItem";
+import useHistoryStore from "../store/HistoryStore";
+import HistoryService from "../service/HistoryService";
 
 export default function HistoryPage() {
-  const histories = useHistoryStore((state) => state.histories);
-  const fetchHistoriesAction = useHistoryStore(
-    (state) => state.fetchHistoriesAction,
-  );
+  const historiesRecord = useHistoryStore((state) => state.histories);
+  const upsertHistories = useHistoryStore((state) => state.upsertHistories);
+
+  const histories = useMemo(() => {
+    return Object.values(historiesRecord).sort(
+      (a, b) =>
+        new Date(b.executedAt).getTime() - new Date(a.executedAt).getTime(),
+    );
+  }, [historiesRecord]);
 
   const [showClearConfirm, setShowClearConfirm] = useState(false);
   const [inspectItem, setInspectItem] = useState<HistoryItem | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(true);
 
+  const fetchAndStoreHistory = async () => {
+    const res = await HistoryService.fetchHistories();
+    if (res.success && res.data) {
+      upsertHistories(res.data.content);
+    } else {
+      setError(res.error || "Failed to fetch history.");
+    }
+    setIsLoading(false);
+  };
+
   useEffect(() => {
     let active = true;
-    const loadHistory = async () => {
-      setIsLoading(true);
-      setError(null);
-      const res = await fetchHistoriesAction();
+    HistoryService.fetchHistories().then((res) => {
       if (!active) return;
-      if (!res.success) {
+      if (res.success && res.data) {
+        upsertHistories(res.data.content);
+      } else {
         setError(res.error || "Failed to fetch history.");
       }
       setIsLoading(false);
-    };
-    loadHistory();
+    });
     return () => {
       active = false;
     };
-  }, [fetchHistoriesAction]);
+  }, [upsertHistories]);
 
   return (
     <div className="space-y-6 font-sans relative p-6 h-full overflow-y-auto">
@@ -77,12 +91,7 @@ export default function HistoryPage() {
             onClick={() => {
               setError(null);
               setIsLoading(true);
-              fetchHistoriesAction().then((res) => {
-                if (!res.success) {
-                  setError(res.error || "Failed to fetch history.");
-                }
-                setIsLoading(false);
-              });
+              fetchAndStoreHistory();
             }}
             className="px-3 py-1.5 bg-brand-primary/10 hover:bg-brand-primary border border-brand-primary/20 hover:border-brand-primary text-brand-primary hover:text-white rounded-lg text-xs font-semibold cursor-pointer transition-standard"
           >

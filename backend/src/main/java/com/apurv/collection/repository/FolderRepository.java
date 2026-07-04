@@ -19,8 +19,4 @@ public interface FolderRepository extends JpaRepository<Folder, UUID> {
 
     Optional<Folder> findByIdAndCollection(UUID id, Collection collection);
 
-    int countByCollection(Collection collection);
-
-    int countByParentFolder(Folder parentFolder);
-
 }

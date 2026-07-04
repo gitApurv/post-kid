@@ -16,7 +16,6 @@ public class FolderResponse {
 
     private UUID id;
     private String name;
-    private int subFolderCount;
     private Instant createdAt;
 
 }

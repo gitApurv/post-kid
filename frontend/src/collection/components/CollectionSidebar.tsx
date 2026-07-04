@@ -1,10 +1,4 @@
-import { useState, useEffect } from "react";
-import { createPortal } from "react-dom";
-import { useCollectionStore } from "../store/collectionStore";
-import { useRequestStore } from "../../request/store/requestStore";
-import type { RequestItem } from "../../request/types/RequestItem";
-import FolderTreeItem from "./FolderTreeItem";
-import RequestTreeItem from "./RequestTreeItem";
+import { useState, useEffect, useMemo } from "react";
 import {
   ChevronRight,
   Trash2,
@@ -15,35 +9,184 @@ import {
   Plus,
   X,
 } from "lucide-react";
+import { createPortal } from "react-dom";
+import FolderTreeItem from "./FolderTreeItem";
+import RequestTreeItem from "./RequestTreeItem";
+import type Collection from "../types/items/CollectionItem";
+import type RequestItem from "../../request/types/items/RequestItem";
+import useWorkspaceStore from "../../workspace/store/WorkspaceStore";
+import useCollectionStore from "../store/CollectionStore";
+import useFolderStore from "../store/FolderStore";
+import useRequestStore from "../../request/store/RequestStore";
+import useEnvironmentStore from "../../environment/store/EnvironmentStore";
+import { useRootFolders, useRootRequests } from "../store/selectors";
+import CollectionService from "../service/CollectionService";
+import FolderService from "../service/FolderService";
+import RequestService from "../../request/service/RequestService";
+
+// Sub-component to render the root-level collection items to clean up selectors
+function CollectionTreeWrapper({
+  collection,
+  isExpanded,
+  toggleCollection,
+  onAddFolder,
+  onAddRequest,
+  onDeleteCollection,
+  onDeleteRequest,
+}: {
+  collection: Collection;
+  isExpanded: boolean;
+  toggleCollection: (id: string) => void;
+  onAddFolder: (colId: string, folderId: string | null) => void;
+  onAddRequest: (colId: string, folderId: string | null) => void;
+  onDeleteCollection: (id: string, name: string) => void;
+  onDeleteRequest: (
+    colId: string,
+    folderId: string | null,
+    id: string,
+    name: string,
+  ) => void;
+}) {
+  const activeCollectionId = useRequestStore(
+    (state) => state.activeCollectionId,
+  );
+  const setActiveCollectionAction = useRequestStore(
+    (state) => state.setActiveCollectionAction,
+  );
+  const folders = useRootFolders(collection.id);
+  const requestItems = useRootRequests(collection.id);
+  const isActive = collection.id === activeCollectionId;
+
+  return (
+    <div className="space-y-1">
+      {/* Collection Title Panel */}
+      <div
+        className={`flex items-center justify-between px-2 py-1.5 rounded-md group relative transition-standard ${
+          isActive
+            ? "bg-brand-primary/10 text-white font-semibold"
+            : "hover:bg-white/[0.01]"
+        }`}
+      >
+        {isActive && (
+          <span className="absolute left-0 top-1 bottom-1 w-[2px] bg-brand-primary rounded-r" />
+        )}
+
+        <span
+          onClick={() => {
+            setActiveCollectionAction(collection.id);
+            if (!isExpanded) {
+              toggleCollection(collection.id);
+            }
+          }}
+          className={`text-xs font-bold truncate tracking-wide flex items-center gap-1.5 cursor-pointer flex-1 min-w-0 ${
+            isActive ? "text-white" : "text-slate-300 hover:text-white"
+          }`}
+        >
+          <span
+            onClick={(e) => {
+              e.stopPropagation();
+              toggleCollection(collection.id);
+            }}
+            className="p-0.5 hover:bg-white/5 rounded text-slate-500 hover:text-slate-300 shrink-0"
+          >
+            <ChevronRight
+              className={`w-3 h-3 transition-transform ${isExpanded ? "rotate-90" : ""}`}
+            />
+          </span>
+          📦 {collection.name}
+        </span>
+
+        {collection.isLoading && (
+          <RefreshCw className="w-3 h-3 text-slate-500 animate-spin mr-1.5 shrink-0" />
+        )}
+
+        <div className="opacity-0 group-hover:opacity-100 flex items-center gap-1 shrink-0">
+          <button
+            onClick={(e) => {
+              e.stopPropagation();
+              onAddFolder(collection.id, null);
+            }}
+            className="p-0.5 hover:bg-white/5 rounded text-slate-500 hover:text-slate-300 transition-standard cursor-pointer"
+            title="Create Folder"
+            aria-label={`Create folder in ${collection.name}`}
+          >
+            <FolderPlus className="w-3.5 h-3.5" />
+          </button>
+          <button
+            onClick={(e) => {
+              e.stopPropagation();
+              onAddRequest(collection.id, null);
+            }}
+            className="p-0.5 hover:bg-white/5 rounded text-slate-500 hover:text-slate-300 transition-standard cursor-pointer"
+            title="Create Request"
+            aria-label={`Create request in ${collection.name}`}
+          >
+            <FilePlus className="w-3.5 h-3.5" />
+          </button>
+          <button
+            onClick={(e) => {
+              e.stopPropagation();
+              onDeleteCollection(collection.id, collection.name);
+            }}
+            className="p-0.5 hover:bg-brand-error/10 rounded text-slate-500 hover:text-brand-error transition-standard cursor-pointer"
+            title="Delete Collection"
+            aria-label={`Delete collection ${collection.name}`}
+          >
+            <Trash2 className="w-3.5 h-3.5" />
+          </button>
+        </div>
+      </div>
+
+      {/* Folders & Requests tree structure */}
+      {isExpanded && (
+        <div className="pl-2 ml-2 border-l border-slate-800/60 space-y-1.5">
+          {/* Folders list */}
+          {folders.map((folder) => (
+            <FolderTreeItem
+              key={folder.id}
+              folder={folder}
+              collectionId={collection.id}
+              level={0}
+              onAddFolder={onAddFolder}
+              onAddRequest={onAddRequest}
+            />
+          ))}
+
+          {/* Root requests list */}
+          {requestItems.map((request) => (
+            <RequestTreeItem
+              key={request.id}
+              request={request}
+              onDelete={(reqId, name) =>
+                onDeleteRequest(collection.id, null, reqId, name)
+              }
+            />
+          ))}
+
+          {folders.length === 0 && requestItems.length === 0 && (
+            <div className="text-[10px] text-slate-600 italic py-1 pl-2">
+              Empty collection
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
 
 export default function CollectionSidebar() {
-  const collections = useCollectionStore((state) => state.collections);
-  const fetchCollectionsAction = useCollectionStore(
-    (state) => state.fetchCollectionsAction,
-  );
-  const fetchCollectionDetailsAction = useCollectionStore(
-    (state) => state.fetchCollectionDetailsAction,
-  );
-  const fetchFolderDetailsAction = useCollectionStore(
-    (state) => state.fetchFolderDetailsAction,
-  );
-  const addCollectionAction = useCollectionStore(
-    (state) => state.addCollectionAction,
+  const collectionsRecord = useCollectionStore((state) => state.collections);
+  const collections = useMemo(
+    () => Object.values(collectionsRecord),
+    [collectionsRecord],
   );
   const deleteCollectionAction = useCollectionStore(
     (state) => state.deleteCollectionAction,
   );
-  const addFolderAction = useCollectionStore((state) => state.addFolderAction);
-  const addRequestAction = useCollectionStore(
-    (state) => state.addRequestAction,
-  );
-  const deleteRequestAction = useCollectionStore(
-    (state) => state.deleteRequestAction,
-  );
-  const toggleFolderExpansionAction = useCollectionStore(
-    (state) => state.toggleFolderExpansionAction,
-  );
 
+  const activeWorkspaceId = useWorkspaceStore(
+    (state) => state.activeWorkspaceId,
+  );
   const activeCollectionId = useRequestStore(
     (state) => state.activeCollectionId,
   );
@@ -68,15 +211,30 @@ export default function CollectionSidebar() {
 
   useEffect(() => {
     const loadCollections = async () => {
-      const response = await fetchCollectionsAction();
-      if (response && !response.success) {
+      if (!activeWorkspaceId) {
+        useCollectionStore.getState().reset();
+        useFolderStore.getState().reset();
+        useRequestStore.getState().reset();
+        useEnvironmentStore.getState().reset();
+        return;
+      }
+      useCollectionStore.getState().reset();
+      useFolderStore.getState().reset();
+      useRequestStore.getState().reset();
+      useEnvironmentStore.getState().reset();
+      const response =
+        await CollectionService.fetchCollections(activeWorkspaceId);
+      if (response.success) {
+        useCollectionStore.getState().upsertCollections(response.data);
+      } else {
         alert(response.error || "Failed to fetch collections.");
       }
     };
     loadCollections();
-  }, []);
+  }, [activeWorkspaceId]);
 
-  const [prevShowAddModal, setPrevShowAddModal] = useState<typeof showAddModal>(showAddModal);
+  const [prevShowAddModal, setPrevShowAddModal] =
+    useState<typeof showAddModal>(showAddModal);
   if (showAddModal !== prevShowAddModal) {
     setPrevShowAddModal(showAddModal);
     setError(null);
@@ -90,25 +248,62 @@ export default function CollectionSidebar() {
       [collectionId]: nextState,
     }));
 
-    const collection = collections.find(
-      (collection) => collection.id === collectionId,
-    );
+    const collection = useCollectionStore.getState().collections[collectionId];
     if (
       nextState &&
       collection &&
       !collection.isLoaded &&
       !collection.isLoading
     ) {
-      const response = await fetchCollectionDetailsAction(collectionId);
-      if (response && !response.success) {
-        alert(response.error || "Failed to fetch collection details.");
+      const workspaceId = useWorkspaceStore.getState().activeWorkspaceId;
+      if (!workspaceId) return;
+
+      useCollectionStore.getState().setCollectionLoading(collectionId, true);
+
+      const [foldersRes, requestsRes] = await Promise.all([
+        CollectionService.fetchCollectionFolders(workspaceId, collectionId),
+        CollectionService.fetchCollectionRootRequests(
+          workspaceId,
+          collectionId,
+        ),
+      ]);
+
+      if (!foldersRes.success) {
+        useCollectionStore.getState().setCollectionLoading(collectionId, false);
+        alert(foldersRes.error || "Failed to fetch collection folders.");
+        return;
       }
+      if (!requestsRes.success) {
+        useCollectionStore.getState().setCollectionLoading(collectionId, false);
+        alert(requestsRes.error || "Failed to fetch collection requests.");
+        return;
+      }
+
+      useFolderStore.getState().upsertFolders(
+        foldersRes.data.map((f) => ({
+          id: f.id,
+          name: f.name,
+          collectionId,
+          parentFolderId: null,
+          isLoaded: false,
+        })),
+      );
+      useRequestStore
+        .getState()
+        .upsertRequestsFromResponse(requestsRes.data, collectionId, null);
+
+      useCollectionStore.getState().upsertCollection({
+        ...collection,
+        isLoaded: true,
+        isLoading: false,
+      });
     }
   };
 
-  const handleAddNewItem = async (e: React.SubmitEvent) => {
+  const handleAddNewItem = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!newItemName.trim() || !showAddModal || isLoading) return;
+    if (!newItemName.trim() || !showAddModal || isLoading || !activeWorkspaceId)
+      return;
 
     setIsLoading(true);
     setError(null);
@@ -116,21 +311,80 @@ export default function CollectionSidebar() {
     const { type, collectionId, folderId } = showAddModal;
     let response;
     if (type === "collection") {
-      response = await addCollectionAction({
+      response = await CollectionService.createCollection(activeWorkspaceId, {
         name: newItemName,
         description: newItemDescription,
       });
+      if (response.success) {
+        useCollectionStore.getState().upsertCollection({
+          id: response.data.id,
+          name: response.data.name,
+          description: response.data.description || "",
+          isLoaded: true,
+          createdAt: response.data.createdAt,
+          updatedAt: response.data.updatedAt,
+        });
+      }
     } else if (type === "folder" && collectionId) {
-      response = await addFolderAction(collectionId, {
-        name: newItemName,
-        parentFolderId: folderId || null,
-      });
+      if (!folderId) {
+        response = await FolderService.createFolder(
+          activeWorkspaceId,
+          collectionId,
+          {
+            name: newItemName,
+          },
+        );
+      } else {
+        response = await FolderService.createSubfolder(
+          activeWorkspaceId,
+          collectionId,
+          folderId,
+          {
+            name: newItemName,
+          },
+        );
+      }
+      if (response.success) {
+        useFolderStore.getState().upsertFolder({
+          id: response.data.id,
+          name: response.data.name,
+          collectionId,
+          parentFolderId: folderId || null,
+          isLoaded: true,
+        });
+      }
     } else if (type === "request" && collectionId) {
-      response = await addRequestAction(collectionId, folderId || null, {
-        name: newItemName,
-        method: newRequestType,
-        url: "{{base_url}}/endpoint",
-      });
+      if (!folderId) {
+        response = await RequestService.createRequest(
+          activeWorkspaceId,
+          collectionId,
+          {
+            name: newItemName,
+            method: newRequestType,
+            url: "{{base_url}}/endpoint",
+          },
+        );
+      } else {
+        response = await RequestService.createFolderRequest(
+          activeWorkspaceId,
+          collectionId,
+          folderId,
+          {
+            name: newItemName,
+            method: newRequestType,
+            url: "{{base_url}}/endpoint",
+          },
+        );
+      }
+      if (response.success) {
+        useRequestStore
+          .getState()
+          .upsertRequestsFromResponse(
+            [response.data],
+            collectionId,
+            folderId || null,
+          );
+      }
     }
 
     if (response && !response.success) {
@@ -143,34 +397,55 @@ export default function CollectionSidebar() {
             ...prev,
             [collectionId]: true,
           }));
-          const collection = collections.find(
-            (collection) => collection.id === collectionId,
-          );
+          const collection =
+            useCollectionStore.getState().collections[collectionId];
           if (collection && !collection.isLoaded && !collection.isLoading) {
-            await fetchCollectionDetailsAction(collectionId);
+            await toggleCollection(collectionId);
           }
         } else {
-          toggleFolderExpansionAction(folderId, true);
-          const findFolderInCollections = (folders: any[], id: string): any => {
-            for (const folder of folders) {
-              if (folder.id === id) return folder;
-              if (folder.subFolders) {
-                const found = findFolderInCollections(folder.subFolders, id);
-                if (found) return found;
+          useFolderStore.getState().toggleFolderExpansion(folderId, true);
+          const folder = useFolderStore.getState().folders[folderId];
+          if (folder && !folder.isLoaded && !folder.isLoading) {
+            const workspaceId = useWorkspaceStore.getState().activeWorkspaceId;
+            if (workspaceId) {
+              useFolderStore.getState().setFolderLoading(folderId, true);
+              const [subfoldersRes, requestsRes] = await Promise.all([
+                FolderService.fetchSubfolders(
+                  workspaceId,
+                  collectionId,
+                  folderId,
+                ),
+                FolderService.fetchFolderRequests(
+                  workspaceId,
+                  collectionId,
+                  folderId,
+                ),
+              ]);
+              if (subfoldersRes.success && requestsRes.success) {
+                useFolderStore.getState().upsertFolders(
+                  subfoldersRes.data.map((f) => ({
+                    id: f.id,
+                    name: f.name,
+                    collectionId,
+                    parentFolderId: folderId,
+                    isLoaded: false,
+                  })),
+                );
+                useRequestStore
+                  .getState()
+                  .upsertRequestsFromResponse(
+                    requestsRes.data,
+                    collectionId,
+                    folderId,
+                  );
+                useFolderStore.getState().upsertFolder({
+                  ...folder,
+                  isLoaded: true,
+                  isLoading: false,
+                });
+              } else {
+                useFolderStore.getState().setFolderLoading(folderId, false);
               }
-            }
-            return null;
-          };
-          const collection = collections.find(
-            (collection) => collection.id === collectionId,
-          );
-          if (collection && collection.folders) {
-            const folder = findFolderInCollections(
-              collection.folders,
-              folderId,
-            );
-            if (folder && !folder.isLoaded && !folder.isLoading) {
-              await fetchFolderDetailsAction(collectionId, folderId);
             }
           }
         }
@@ -217,9 +492,22 @@ export default function CollectionSidebar() {
         `Are you sure you want to permanently delete API request '${name}'?`,
       )
     ) {
-      const res = await deleteRequestAction(collectionId, folderId, reqId);
+      const res = folderId
+        ? await RequestService.deleteFolderRequest(
+            activeWorkspaceId!,
+            collectionId,
+            folderId,
+            reqId,
+          )
+        : await RequestService.deleteRequest(
+            activeWorkspaceId!,
+            collectionId,
+            reqId,
+          );
       if (res && !res.success) {
         alert(res.error || "Failed to delete request.");
+      } else {
+        useRequestStore.getState().removeRequest(reqId);
       }
     }
   };
@@ -249,150 +537,30 @@ export default function CollectionSidebar() {
 
       {/* Reactive Collections Accordion Tree */}
       <div className="flex-1 overflow-y-auto p-2 space-y-3">
-        {collections.map((collection) => {
-          const isExpanded = !!expandedCollections[collection.id];
-          const isActive = collection.id === activeCollectionId;
-
-          return (
-            <div key={collection.id} className="space-y-1">
-              {/* Collection Title Panel */}
-              <div
-                className={`flex items-center justify-between px-2 py-1.5 rounded-md group relative transition-standard ${
-                  isActive
-                    ? "bg-brand-primary/10 text-white font-semibold"
-                    : "hover:bg-white/[0.01]"
-                }`}
-              >
-                {isActive && (
-                  <span className="absolute left-0 top-1 bottom-1 w-[2px] bg-brand-primary rounded-r" />
-                )}
-
-                <span
-                  onClick={() => {
-                    setActiveCollectionAction(collection.id);
-                    if (!isExpanded) {
-                      toggleCollection(collection.id);
-                    }
-                  }}
-                  className={`text-xs font-bold truncate tracking-wide flex items-center gap-1.5 cursor-pointer flex-1 min-w-0 ${
-                    isActive ? "text-white" : "text-slate-300 hover:text-white"
-                  }`}
-                >
-                  <span
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      toggleCollection(collection.id);
-                    }}
-                    className="p-0.5 hover:bg-white/5 rounded text-slate-500 hover:text-slate-300 shrink-0"
-                  >
-                    <ChevronRight
-                      className={`w-3 h-3 transition-transform ${isExpanded ? "rotate-90" : ""}`}
-                    />
-                  </span>
-                  📦 {collection.name}
-                </span>
-
-                {collection.isLoading && (
-                  <RefreshCw className="w-3 h-3 text-slate-500 animate-spin mr-1.5 shrink-0" />
-                )}
-
-                <div className="opacity-0 group-hover:opacity-100 flex items-center gap-1 shrink-0">
-                  <button
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      setShowAddModal({
-                        type: "folder",
-                        collectionId: collection.id,
-                        folderId: null,
-                      });
-                    }}
-                    className="p-0.5 hover:bg-white/5 rounded text-slate-500 hover:text-slate-300 transition-standard cursor-pointer"
-                    title="Create Folder"
-                    aria-label={`Create folder in ${collection.name}`}
-                  >
-                    <FolderPlus className="w-3.5 h-3.5" />
-                  </button>
-                  <button
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      setShowAddModal({
-                        type: "request",
-                        collectionId: collection.id,
-                        folderId: null,
-                      });
-                    }}
-                    className="p-0.5 hover:bg-white/5 rounded text-slate-500 hover:text-slate-300 transition-standard cursor-pointer"
-                    title="Create Request"
-                    aria-label={`Create request in ${collection.name}`}
-                  >
-                    <FilePlus className="w-3.5 h-3.5" />
-                  </button>
-                  <button
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      handleDeleteCollection(collection.id, collection.name);
-                    }}
-                    className="p-0.5 hover:bg-brand-error/10 rounded text-slate-500 hover:text-brand-error transition-standard cursor-pointer"
-                    title="Delete Collection"
-                    aria-label={`Delete collection ${collection.name}`}
-                  >
-                    <Trash2 className="w-3.5 h-3.5" />
-                  </button>
-                </div>
-              </div>
-
-              {/* Folders & Requests tree structure */}
-              {isExpanded && (
-                <div className="pl-2 ml-2 border-l border-slate-800/60 space-y-1.5">
-                  {/* Folders list */}
-                  {collection.folders &&
-                    collection.folders.map((folder) => (
-                      <FolderTreeItem
-                        key={folder.id}
-                        folder={folder}
-                        collectionId={collection.id}
-                        level={0}
-                        onAddFolder={(collectionId, folderId) =>
-                          setShowAddModal({
-                            type: "folder",
-                            collectionId: collectionId,
-                            folderId: folderId,
-                          })
-                        }
-                        onAddRequest={(collectionId, folderId) =>
-                          setShowAddModal({
-                            type: "request",
-                            collectionId: collectionId,
-                            folderId: folderId,
-                          })
-                        }
-                      />
-                    ))}
-
-                  {/* Root requests list */}
-                  {collection.requestItems &&
-                    collection.requestItems.map((request) => (
-                      <RequestTreeItem
-                        key={request.id}
-                        request={request}
-                        onDelete={(reqId, name) =>
-                          handleDeleteRequest(collection.id, null, reqId, name)
-                        }
-                      />
-                    ))}
-
-                  {(!collection.folders || collection.folders.length === 0) &&
-                    (!collection.requestItems ||
-                      collection.requestItems.length === 0) && (
-                      <div className="text-[10px] text-slate-600 italic py-1 pl-2">
-                        Empty collection
-                      </div>
-                    )}
-                </div>
-              )}
-            </div>
-          );
-        })}
+        {collections.map((collection) => (
+          <CollectionTreeWrapper
+            key={collection.id}
+            collection={collection}
+            isExpanded={!!expandedCollections[collection.id]}
+            toggleCollection={toggleCollection}
+            onAddFolder={(collectionId, folderId) =>
+              setShowAddModal({
+                type: "folder",
+                collectionId,
+                folderId,
+              })
+            }
+            onAddRequest={(collectionId, folderId) =>
+              setShowAddModal({
+                type: "request",
+                collectionId,
+                folderId,
+              })
+            }
+            onDeleteCollection={handleDeleteCollection}
+            onDeleteRequest={handleDeleteRequest}
+          />
+        ))}
         {collections.length === 0 && (
           <div className="text-[11px] text-slate-500 italic text-center py-8">
             No collections found. Click "New" to create one.

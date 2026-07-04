@@ -1,8 +1,8 @@
 import { useState, useEffect, useRef } from "react";
 import { ChevronDown, Layers2, Settings, Zap } from "lucide-react";
-import { useWorkspaceStore } from "../../workspace/store/workspaceStore";
-import WorkspaceSettingsModal from "../../workspace/components/WorkspaceSettingsModal";
 import { useLocation } from "react-router-dom";
+import useWorkspaceStore from "../../workspace/store/WorkspaceStore";
+import WorkspaceSettingsModal from "../../workspace/components/WorkspaceSettingsModal";
 
 export default function Navbar() {
   const workspaces = useWorkspaceStore((state) => state.workspaces);
@@ -16,7 +16,9 @@ export default function Navbar() {
     (state) => state.fetchWorkspacesAction,
   );
 
-  const activeWorkspace = workspaces.find((w) => w.id === activeWorkspaceId);
+  const activeWorkspace = activeWorkspaceId
+    ? workspaces[activeWorkspaceId]
+    : undefined;
   const [isOpen, setIsOpen] = useState(false);
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
@@ -84,7 +86,7 @@ export default function Navbar() {
                     Switch Workspace
                   </div>
                   <div className="max-h-52 overflow-y-auto space-y-0.5 custom-scrollbar pr-0.5">
-                    {workspaces.map((w) => {
+                    {Object.values(workspaces).map((w) => {
                       const isSelected = w.id === activeWorkspaceId;
                       return (
                         <button

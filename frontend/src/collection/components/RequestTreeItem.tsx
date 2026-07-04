@@ -1,6 +1,6 @@
-import { useRequestStore } from "../../request/store/requestStore";
 import { Trash2 } from "lucide-react";
-import type { RequestTreeItemProps } from "../types/RequestTreeItemProps";
+import type RequestTreeItemProps from "../types/props/RequestTreeItemProps";
+import useRequestStore from "../../request/store/RequestStore";
 
 const getMethodColor = (method: string) => {
   switch (method) {
@@ -32,7 +32,17 @@ export default function RequestTreeItem({
 
   return (
     <div
-      onClick={() => {
+      onClick={async () => {
+        const requestStore = useRequestStore.getState();
+        const activeRequest = requestStore.activeRequest;
+        if (activeRequest) {
+          const savedRequest = requestStore.requests[activeRequest.id];
+          if (savedRequest && activeRequest.url !== savedRequest.url) {
+            await requestStore.updateActiveRequestAction({
+              url: activeRequest.url,
+            });
+          }
+        }
         setActiveRequestDirectlyAction(request);
       }}
       className={`group/req flex items-center justify-between px-2.5 py-1.5 rounded text-[11px] cursor-pointer transition-standard relative ${

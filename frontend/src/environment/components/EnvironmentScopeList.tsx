@@ -1,7 +1,9 @@
 import { useEffect } from "react";
-import { useEnvironmentStore } from "../store/environmentStore";
 import { Plus, Trash2 } from "lucide-react";
-import type { EnvironmentScopeListProps } from "../types/EnvironmentScopeListProps";
+import useEnvironmentStore from "../store/EnvironmentStore";
+import useWorkspaceStore from "../../workspace/store/WorkspaceStore";
+import EnvironmentService from "../service/EnvironmentService";
+import type EnvironmentScopeListProps from "../types/props/EnvironmentScopeListProps";
 
 export default function EnvironmentScopeList({
   collectionId,
@@ -12,10 +14,10 @@ export default function EnvironmentScopeList({
     (state) => state.activeEnvironmentId,
   );
   const setActiveEnvironment = useEnvironmentStore(
-    (state) => state.setActiveEnvironmentAction,
+    (state) => state.setActiveEnvironmentId,
   );
-  const deleteEnvironmentAction = useEnvironmentStore(
-    (state) => state.deleteEnvironmentAction,
+  const removeEnvironmentState = useEnvironmentStore(
+    (state) => state.removeEnvironment,
   );
   const fetchEnvironments = useEnvironmentStore(
     (state) => state.fetchEnvironmentsAction,
@@ -37,8 +39,16 @@ export default function EnvironmentScopeList({
         `Are you sure you want to permanently delete environment '${name}'?`,
       )
     ) {
-      const res = await deleteEnvironmentAction(collectionId, id);
-      if (res && !res.success) {
+      const workspaceId = useWorkspaceStore.getState().activeWorkspaceId;
+      if (!workspaceId) return;
+      const res = await EnvironmentService.deleteEnvironment(
+        workspaceId,
+        collectionId,
+        id,
+      );
+      if (res.success) {
+        removeEnvironmentState(id);
+      } else {
         alert(res.error || "Failed to delete environment.");
       }
     }
@@ -61,7 +71,7 @@ export default function EnvironmentScopeList({
         </div>
 
         <div className="space-y-2">
-          {environments.map((environment) => {
+          {Object.values(environments).map((environment) => {
             const isActive = environment.id === activeEnvironmentId;
 
             return (

@@ -1,6 +1,5 @@
 import { useState, useEffect, useRef } from "react";
 import { Link, useLocation, useNavigate } from "react-router-dom";
-import { useAuthStore } from "../../auth/store/authStore";
 import {
   Home,
   History,
@@ -9,6 +8,7 @@ import {
   LogOut,
   Terminal,
 } from "lucide-react";
+import useAuthStore from "../../auth/store/AuthStore";
 
 export default function Sidebar() {
   const location = useLocation();

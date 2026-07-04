@@ -1,327 +1,140 @@
 import { create } from "zustand";
-import api from "../../config/axios";
-import axios from "axios";
-import type { ApiResponse } from "../../common/types/ApiResponse";
-import type { WorkspaceState } from "../types/WorkspaceState";
-import type { WorkspaceItem } from "../types/WorkspaceItem";
-import type { WorkspaceRequest } from "../types/WorkspaceRequest";
-import type { WorkspaceResponse } from "../types/WorkspaceResponse";
-import type { MemberResponse } from "../types/MemberResponse";
-import type { InviteMemberRequest } from "../types/InviteMemberRequest";
-import { useCollectionStore } from "../../collection/store/collectionStore";
-import { useEnvironmentStore } from "../../environment/store/environmentStore";
+import type WorkspaceItem from "../types/items/WorkspaceItem";
+import type WorkspaceState from "../types/state/WorkspaceState";
+import useCollectionStore from "../../collection/store/CollectionStore";
+import useFolderStore from "../../collection/store/FolderStore";
+import useEnvironmentStore from "../../environment/store/EnvironmentStore";
+import useRequestStore from "../../request/store/RequestStore";
+import WorkspaceService from "../service/WorkspaceService";
+import CollectionService from "../../collection/service/CollectionService";
 
-export const useWorkspaceStore = create<WorkspaceState>((set, get) => ({
-  workspaces: [],
+const useWorkspaceStore = create<WorkspaceState>((set, get) => ({
+  workspaces: {},
   activeWorkspaceId: null,
 
-  fetchWorkspacesAction: async () => {
-    try {
-      const fetchWorkspaceResponse =
-        await api.get<ApiResponse<WorkspaceResponse[]>>("/workspaces");
-      if (
-        fetchWorkspaceResponse.data.success &&
-        fetchWorkspaceResponse.data.data
-      ) {
-        const workspaces: WorkspaceItem[] =
-          fetchWorkspaceResponse.data.data.map((workspace) => ({
-            ...workspace,
-            isLoading: false,
-          }));
-        set({ workspaces });
+  // ─── Mutations ───────────────────────────────────────────────
 
-        const { activeWorkspaceId } = get();
-        if (workspaces.length > 0) {
-          const activeExists = workspaces.some(
-            (workspace) => workspace.id === activeWorkspaceId,
-          );
-          if (!activeWorkspaceId || !activeExists) {
-            await get().setActiveWorkspaceAction(workspaces[0].id);
-          }
-        } else {
-          if (activeWorkspaceId !== null) {
-            await get().setActiveWorkspaceAction(null);
-          }
-        }
+  upsertWorkspace: (workspace) =>
+    set((state) => ({
+      workspaces: { ...state.workspaces, [workspace.id]: workspace },
+    })),
 
-        return { success: true };
-      } else {
-        return {
-          success: false,
-          error:
-            fetchWorkspaceResponse.data.message ||
-            "Failed to fetch workspaces.",
-        };
-      }
-    } catch (error) {
-      console.error("Failed to fetch workspaces:", error);
-      let errorMessage = "Failed to fetch workspaces.";
-      if (axios.isAxiosError<ApiResponse<unknown>>(error)) {
-        errorMessage =
-          error.response?.data?.message || error.message || errorMessage;
-      } else if (error instanceof Error) {
-        errorMessage = error.message;
-      }
-      return { success: false, error: errorMessage };
+  upsertWorkspaces: (list) =>
+    set((state) => ({
+      workspaces: {
+        ...state.workspaces,
+        ...Object.fromEntries(
+          list.map((workspace) => [workspace.id, workspace]),
+        ),
+      },
+    })),
+
+  removeWorkspace: (id) =>
+    set((state) => {
+      const remainingWorkspaces = { ...state.workspaces };
+      delete remainingWorkspaces[id];
+      return { workspaces: remainingWorkspaces };
+    }),
+
+  updateMemberCount: (id, delta) =>
+    set((state) => {
+      const existing = state.workspaces[id];
+      if (!existing) return state;
+      return {
+        workspaces: {
+          ...state.workspaces,
+          [id]: {
+            ...existing,
+            memberCount: Math.max(1, existing.memberCount + delta),
+          },
+        },
+      };
+    }),
+
+  setActiveWorkspaceId: (id) => set({ activeWorkspaceId: id }),
+
+  reset: () => set({ workspaces: {}, activeWorkspaceId: null }),
+
+  // ─── Actions ─────────────────────────────────────────────────
+
+  setActiveWorkspaceAction: async (id) => {
+    get().setActiveWorkspaceId(id);
+
+    useEnvironmentStore.getState().reset();
+    useRequestStore.getState().reset();
+    useFolderStore.getState().reset();
+    useCollectionStore.getState().reset();
+
+    if (!id) {
+      return { success: true };
     }
-  },
 
-  createWorkspaceAction: async (request: WorkspaceRequest) => {
-    try {
-      const createWorkspaceResponse = await api.post<
-        ApiResponse<WorkspaceResponse>
-      >("/workspaces", request);
-      if (
-        createWorkspaceResponse.data.success &&
-        createWorkspaceResponse.data.data
-      ) {
-        const newWorkspace: WorkspaceItem = {
-          ...createWorkspaceResponse.data.data,
-          isLoading: false,
-        };
-        set((state) => ({
-          workspaces: [...state.workspaces, newWorkspace],
-        }));
-        if (!get().activeWorkspaceId) {
-          await get().setActiveWorkspaceAction(newWorkspace.id);
-        }
-        return { success: true };
-      } else {
-        return {
-          success: false,
-          error:
-            createWorkspaceResponse.data.message ||
-            "Failed to create workspace.",
-        };
-      }
-    } catch (error) {
-      console.error("Failed to create workspace:", error);
-      let errorMessage = "Failed to create workspace.";
-      if (axios.isAxiosError<ApiResponse<unknown>>(error)) {
-        errorMessage =
-          error.response?.data?.message || error.message || errorMessage;
-      } else if (error instanceof Error) {
-        errorMessage = error.message;
-      }
-      return { success: false, error: errorMessage };
-    }
-  },
+    const collectionsRes = await CollectionService.fetchCollections(id);
+    if (!collectionsRes.success) return collectionsRes;
 
-  updateWorkspaceAction: async (
-    workspaceId: string,
-    request: WorkspaceRequest,
-  ) => {
-    try {
-      const updateWorkspaceResponse = await api.put<
-        ApiResponse<WorkspaceResponse>
-      >(`/workspaces/${workspaceId}`, request);
-      if (
-        updateWorkspaceResponse.data.success &&
-        updateWorkspaceResponse.data.data
-      ) {
-        const updatedWorkspace = updateWorkspaceResponse.data.data;
-        set((state) => ({
-          workspaces: state.workspaces.map((workspace) =>
-            workspace.id === workspaceId
-              ? { ...workspace, ...updatedWorkspace }
-              : workspace,
-          ),
-        }));
-        return { success: true };
-      } else {
-        return {
-          success: false,
-          error:
-            updateWorkspaceResponse.data.message ||
-            "Failed to update workspace.",
-        };
-      }
-    } catch (error) {
-      console.error("Failed to update workspace:", error);
-      let errorMessage = "Failed to update workspace.";
-      if (axios.isAxiosError<ApiResponse<unknown>>(error)) {
-        errorMessage =
-          error.response?.data?.message || error.message || errorMessage;
-      } else if (error instanceof Error) {
-        errorMessage = error.message;
-      }
-      return { success: false, error: errorMessage };
-    }
-  },
-
-  deleteWorkspaceAction: async (workspaceId: string) => {
-    try {
-      const deleteWorkspaceResponse = await api.delete<ApiResponse<void>>(
-        `/workspaces/${workspaceId}`,
-      );
-      if (deleteWorkspaceResponse.data.success) {
-        set((state) => ({
-          workspaces: state.workspaces.filter(
-            (workspace) => workspace.id !== workspaceId,
-          ),
-        }));
-        const { activeWorkspaceId, workspaces } = get();
-        if (activeWorkspaceId === workspaceId) {
-          const remaining = workspaces.filter(
-            (workspace) => workspace.id !== workspaceId,
-          );
-          if (remaining.length > 0) {
-            await get().setActiveWorkspaceAction(remaining[0].id);
-          } else {
-            await get().setActiveWorkspaceAction(null);
-          }
-        }
-        return { success: true };
-      } else {
-        return {
-          success: false,
-          error:
-            deleteWorkspaceResponse.data.message ||
-            "Failed to delete workspace.",
-        };
-      }
-    } catch (error) {
-      console.error("Failed to delete workspace:", error);
-      let errorMessage = "Failed to delete workspace.";
-      if (axios.isAxiosError<ApiResponse<unknown>>(error)) {
-        errorMessage =
-          error.response?.data?.message || error.message || errorMessage;
-      } else if (error instanceof Error) {
-        errorMessage = error.message;
-      }
-      return { success: false, error: errorMessage };
-    }
-  },
-
-  setActiveWorkspaceAction: async (workspaceId: string | null) => {
-    set({ activeWorkspaceId: workspaceId });
-
-    useEnvironmentStore.setState({ environments: [], activeEnvironmentId: "" });
-
-    await useCollectionStore.getState().fetchCollectionsAction();
+    useCollectionStore.getState().upsertCollections(
+      collectionsRes.data.map((collection) => ({
+        id: collection.id,
+        name: collection.name,
+        description: collection.description || "",
+        isLoaded: false,
+        isLoading: false,
+        createdAt: collection.createdAt,
+        updatedAt: collection.updatedAt,
+      })),
+    );
 
     return { success: true };
   },
 
-  fetchMembersAction: async (workspaceId: string) => {
-    try {
-      const fetchMembersResponse = await api.get<ApiResponse<MemberResponse[]>>(
-        `/workspaces/${workspaceId}/members`,
-      );
-      if (fetchMembersResponse.data.success && fetchMembersResponse.data.data) {
-        return { success: true, data: fetchMembersResponse.data.data };
-      }
-      return {
-        success: false,
-        error: fetchMembersResponse.data.message || "Failed to fetch members.",
-      };
-    } catch (error) {
-      console.error("Failed to fetch members:", error);
-      let errorMessage = "Failed to fetch members.";
-      if (axios.isAxiosError<ApiResponse<unknown>>(error)) {
-        errorMessage =
-          error.response?.data?.message || error.message || errorMessage;
-      } else if (error instanceof Error) {
-        errorMessage = error.message;
-      }
-      return { success: false, error: errorMessage };
+  fetchWorkspacesAction: async () => {
+    const res = await WorkspaceService.fetchWorkspaces();
+    if (!res.success) return res;
+
+    const mapped: WorkspaceItem[] = res.data.map((workspace) => ({
+      ...workspace,
+      isLoading: false,
+    }));
+    get().upsertWorkspaces(mapped);
+
+    const { activeWorkspaceId, workspaces } = get();
+    const ids = Object.keys(workspaces);
+
+    if (!activeWorkspaceId || !workspaces[activeWorkspaceId]) {
+      const fallbackId = ids[0] ?? null;
+      await get().setActiveWorkspaceAction(fallbackId);
     }
+
+    return { success: true };
   },
 
-  inviteMemberAction: async (
-    workspaceId: string,
-    request: InviteMemberRequest,
-  ) => {
-    try {
-      const inviteMemberResponse = await api.post<ApiResponse<MemberResponse>>(
-        `/workspaces/${workspaceId}/members`,
-        request,
-      );
-      if (inviteMemberResponse.data.success && inviteMemberResponse.data.data) {
-        set((state) => ({
-          workspaces: state.workspaces.map((workspace) =>
-            workspace.id === workspaceId
-              ? { ...workspace, memberCount: workspace.memberCount + 1 }
-              : workspace,
-          ),
-        }));
-        return { success: true, data: inviteMemberResponse.data.data };
-      }
-      return {
-        success: false,
-        error: inviteMemberResponse.data.message || "Failed to invite member.",
-      };
-    } catch (error) {
-      console.error("Failed to invite member:", error);
-      let errorMessage = "Failed to invite member.";
-      if (axios.isAxiosError<ApiResponse<unknown>>(error)) {
-        errorMessage =
-          error.response?.data?.message || error.message || errorMessage;
-      } else if (error instanceof Error) {
-        errorMessage = error.message;
-      }
-      return { success: false, error: errorMessage };
-    }
+  createWorkspaceAction: async (req) => {
+    const res = await WorkspaceService.createWorkspace(req);
+    if (!res.success) return res;
+
+    const newWorkspace: WorkspaceItem = { ...res.data, isLoading: false };
+    get().upsertWorkspace(newWorkspace);
+
+    await get().setActiveWorkspaceAction(newWorkspace.id);
+
+    return { success: true };
   },
 
-  removeMemberAction: async (workspaceId: string, userId: string) => {
-    try {
-      const removeMemberResponse = await api.delete<ApiResponse<void>>(
-        `/workspaces/${workspaceId}/members/${userId}`,
-      );
-      if (removeMemberResponse.data.success) {
-        set((state) => ({
-          workspaces: state.workspaces.map((workspace) =>
-            workspace.id === workspaceId
-              ? {
-                  ...workspace,
-                  memberCount: Math.max(1, workspace.memberCount - 1),
-                }
-              : workspace,
-          ),
-        }));
-        return { success: true };
-      }
-      return {
-        success: false,
-        error: removeMemberResponse.data.message || "Failed to remove member.",
-      };
-    } catch (error) {
-      console.error("Failed to remove member:", error);
-      let errorMessage = "Failed to remove member.";
-      if (axios.isAxiosError<ApiResponse<unknown>>(error)) {
-        errorMessage =
-          error.response?.data?.message || error.message || errorMessage;
-      } else if (error instanceof Error) {
-        errorMessage = error.message;
-      }
-      return { success: false, error: errorMessage };
-    }
-  },
+  deleteWorkspaceAction: async (id) => {
+    const res = await WorkspaceService.deleteWorkspace(id);
+    if (!res.success) return res;
 
-  leaveWorkspaceAction: async (workspaceId: string) => {
-    try {
-      const leaveWorkspaceResponse = await api.delete<ApiResponse<void>>(
-        `/workspaces/${workspaceId}/members/leave`,
-      );
-      if (leaveWorkspaceResponse.data.success) {
-        return { success: true };
-      }
-      return {
-        success: false,
-        error:
-          leaveWorkspaceResponse.data.message || "Failed to leave workspace.",
-      };
-    } catch (error) {
-      console.error("Failed to leave workspace:", error);
-      let errorMessage = "Failed to leave workspace.";
-      if (axios.isAxiosError<ApiResponse<unknown>>(error)) {
-        errorMessage =
-          error.response?.data?.message || error.message || errorMessage;
-      } else if (error instanceof Error) {
-        errorMessage = error.message;
-      }
-      return { success: false, error: errorMessage };
+    get().removeWorkspace(id);
+
+    const { activeWorkspaceId, workspaces } = get();
+    if (activeWorkspaceId === id) {
+      const remaining = Object.keys(workspaces);
+      const fallbackId = remaining[0] ?? null;
+      await get().setActiveWorkspaceAction(fallbackId);
     }
+
+    return { success: true };
   },
 }));
+
+export default useWorkspaceStore;
