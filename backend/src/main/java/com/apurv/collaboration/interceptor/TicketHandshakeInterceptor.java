@@ -33,11 +33,11 @@ public class TicketHandshakeInterceptor implements HandshakeInterceptor {
             String ticket = servletRequest.getServletRequest().getParameter("ticket");
 
             if (ticket != null && !ticket.isBlank()) {
-                String username = wsTicketService.validateAndConsumeTicket(ticket);
+                String userId = wsTicketService.validateAndConsumeTicket(ticket);
 
-                if (username != null) {
-                    attributes.put("username", username);
-                    log.info("Handshake authenticated via ticket for user: {}", username);
+                if (userId != null) {
+                    attributes.put("userId", userId);
+                    log.info("Handshake authenticated via ticket for user: {}", userId);
                     return true;
                 }
             }

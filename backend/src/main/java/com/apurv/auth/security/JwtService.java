@@ -49,12 +49,12 @@ public class JwtService {
     }
 
     public String extractUsername(String token) {
-        return extractClaim(token, Claims::getSubject);
+        return extractClaim(token, claims -> claims.getSubject());
     }
 
     public boolean isTokenExpired(String token) {
         try {
-            return extractClaim(token, Claims::getExpiration).before(new Date());
+            return extractClaim(token, claims -> claims.getExpiration()).before(new Date());
         } catch (Exception e) {
             return true;
         }
@@ -62,7 +62,7 @@ public class JwtService {
 
     public long getExpirationMs(String token) {
         try {
-            Date expiration = extractClaim(token, Claims::getExpiration);
+            Date expiration = extractClaim(token, claims -> claims.getExpiration());
             return expiration.getTime() - System.currentTimeMillis();
         } catch (Exception e) {
             return 0;

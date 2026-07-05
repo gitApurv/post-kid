@@ -18,12 +18,12 @@ public class WsTicketService {
     private static final String TICKET_PREFIX = "ws_ticket:";
     private static final long TICKET_TTL_SECONDS = 60;
 
-    public String createTicket(String username) {
+    public String createTicket(String userId) {
         String ticket = UUID.randomUUID().toString();
         String key = TICKET_PREFIX + ticket;
 
-        redisTemplate.opsForValue().set(key, username, TICKET_TTL_SECONDS, TimeUnit.SECONDS);
-        log.debug("Created short-lived WS ticket for user: {}", username);
+        redisTemplate.opsForValue().set(key, userId, TICKET_TTL_SECONDS, TimeUnit.SECONDS);
+        log.debug("Created short-lived WS ticket for user: {}", userId);
 
         return ticket;
     }
@@ -34,11 +34,11 @@ public class WsTicketService {
         }
 
         String key = TICKET_PREFIX + ticket;
-        String username = redisTemplate.opsForValue().getAndDelete(key);
+        String userId = redisTemplate.opsForValue().getAndDelete(key);
 
-        if (username != null) {
-            log.debug("Consumed WS ticket for user: {}", username);
-            return username;
+        if (userId != null) {
+            log.debug("Consumed WS ticket for user: {}", userId);
+            return userId;
         }
 
         log.warn("Invalid or expired WS ticket attempt");

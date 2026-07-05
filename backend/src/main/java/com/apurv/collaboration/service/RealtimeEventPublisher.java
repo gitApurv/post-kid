@@ -10,9 +10,11 @@ import com.apurv.collaboration.dto.CollaborationEvent;
 import com.apurv.collaboration.dto.EntityType;
 
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 
 @Service
 @RequiredArgsConstructor
+@Slf4j
 public class RealtimeEventPublisher {
 
     private final SimpMessagingTemplate messagingTemplate;
@@ -28,6 +30,10 @@ public class RealtimeEventPublisher {
                 .actorId(actorId)
                 .build();
 
-        messagingTemplate.convertAndSend("/topic/workspace/" + workspaceId, event);
+        try {
+            messagingTemplate.convertAndSend("/topic/workspace/" + workspaceId, event);
+        } catch (Exception e) {
+            log.error("Failed to broadcast event for workspace {}: {}", workspaceId, e.getMessage(), e);
+        }
     }
 }

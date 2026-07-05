@@ -24,7 +24,7 @@ public class WsTicketController {
     public ResponseEntity<ApiResponse<WsTicketResponse>> getWsTicket(
             @AuthenticationPrincipal User currentUser) {
 
-        String ticket = wsTicketService.createTicket(currentUser.getUsername());
+        String ticket = wsTicketService.createTicket(currentUser.getId().toString());
 
         return ResponseEntity.ok(
                 ApiResponse.success("WebSocket ticket generated successfully", new WsTicketResponse(ticket)));
