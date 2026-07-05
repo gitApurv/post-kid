@@ -17,8 +17,6 @@ import org.springframework.web.bind.annotation.RestController;
 
 import com.apurv.auth.entity.User;
 import com.apurv.common.dto.ApiResponse;
-import com.apurv.workspace.dto.InviteMemberRequest;
-import com.apurv.workspace.dto.MemberResponse;
 import com.apurv.workspace.dto.WorkspaceRequest;
 import com.apurv.workspace.dto.WorkspaceResponse;
 import com.apurv.workspace.service.WorkspaceService;
@@ -89,53 +87,4 @@ public class WorkspaceController {
                 return ResponseEntity.ok(ApiResponse.success("Workspace deleted", null));
         }
 
-        @PostMapping("/{workspaceId}/members")
-        public ResponseEntity<ApiResponse<MemberResponse>> inviteMember(
-                        @PathVariable UUID workspaceId,
-                        @Valid @RequestBody InviteMemberRequest request,
-                        @AuthenticationPrincipal User currentUser) {
-
-                MemberResponse response = workspaceService.inviteMember(
-                                workspaceId,
-                                request,
-                                currentUser);
-                return ResponseEntity.status(HttpStatus.CREATED)
-                                .body(ApiResponse.success("Member invited", response));
-        }
-
-        @DeleteMapping("/{workspaceId}/members/{userId}")
-        public ResponseEntity<ApiResponse<Void>> removeMember(
-                        @PathVariable UUID workspaceId,
-                        @PathVariable UUID userId,
-                        @AuthenticationPrincipal User currentUser) {
-
-                workspaceService.removeMember(
-                                workspaceId,
-                                userId,
-                                currentUser);
-                return ResponseEntity.ok(ApiResponse.success("Member removed", null));
-        }
-
-        @DeleteMapping("/{workspaceId}/members/leave")
-        public ResponseEntity<ApiResponse<Void>> leaveWorkspace(
-                        @PathVariable UUID workspaceId,
-                        @AuthenticationPrincipal User currentUser) {
-
-                workspaceService.removeMember(
-                                workspaceId,
-                                currentUser.getId(),
-                                currentUser);
-                return ResponseEntity.ok(ApiResponse.success("Left workspace successfully", null));
-        }
-
-        @GetMapping("/{workspaceId}/members")
-        public ResponseEntity<ApiResponse<List<MemberResponse>>> getMembers(
-                        @PathVariable UUID workspaceId,
-                        @AuthenticationPrincipal User currentUser) {
-
-                List<MemberResponse> response = workspaceService.getMembers(
-                                workspaceId,
-                                currentUser);
-                return ResponseEntity.ok(ApiResponse.success("Members fetched", response));
-        }
 }
