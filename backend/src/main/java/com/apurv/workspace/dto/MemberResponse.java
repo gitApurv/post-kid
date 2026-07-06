@@ -17,5 +17,6 @@ public class MemberResponse {
     private String email;
     private WorkspaceRole role;
     private Instant joinedAt;
+    private UUID workspaceId;
 
 }

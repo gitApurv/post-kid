@@ -18,6 +18,12 @@ import com.apurv.workspace.entity.WorkspaceMember;
 import com.apurv.workspace.entity.WorkspaceRole;
 import com.apurv.workspace.repository.WorkspaceMemberRepository;
 
+import org.springframework.context.ApplicationEventPublisher;
+import com.apurv.collaboration.event.EntityMutatedEvent;
+import com.apurv.collaboration.dto.EntityType;
+import com.apurv.collaboration.dto.ActionType;
+import com.apurv.collaboration.dto.DeletedPayload;
+
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 
@@ -30,6 +36,7 @@ public class WorkspaceMemberService {
     private final WorkspaceAuthorizationService workspaceAuthorizationService;
     private final WorkspaceMemberRepository workspaceMemberRepository;
     private final UserRepository userRepository;
+    private final ApplicationEventPublisher eventPublisher;
 
     @Transactional
     public MemberResponse inviteMember(UUID workspaceId, InviteMemberRequest request, User currentUser) {
@@ -53,7 +60,10 @@ public class WorkspaceMemberService {
 
         log.info("User with id {} invited to workspace {} by user {}", invitedUser.getId(), workspaceId,
                 currentUser.getId());
-        return toMemberResponse(savedWorkspaceMember);
+        MemberResponse response = toMemberResponse(savedWorkspaceMember);
+        eventPublisher.publishEvent(new EntityMutatedEvent(this, workspaceId.toString(), EntityType.WORKSPACE_MEMBER,
+                ActionType.CREATED, response, currentUser.getId().toString()));
+        return response;
     }
 
     @Transactional
@@ -73,6 +83,8 @@ public class WorkspaceMemberService {
 
         workspaceMemberRepository.delete(workspaceMember);
         log.info("User with id {} removed from workspace {} by user {}", userId, workspaceId, currentUser.getId());
+        eventPublisher.publishEvent(new EntityMutatedEvent(this, workspaceId.toString(), EntityType.WORKSPACE_MEMBER,
+                ActionType.DELETED, new DeletedPayload(userId), currentUser.getId().toString()));
     }
 
     @Transactional(readOnly = true)
@@ -99,6 +111,7 @@ public class WorkspaceMemberService {
                 .email(workspaceMember.getUser().getEmail())
                 .role(workspaceMember.getRole())
                 .joinedAt(workspaceMember.getJoinedAt())
+                .workspaceId(workspaceMember.getWorkspace().getId())
                 .build();
     }
 

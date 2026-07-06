@@ -17,6 +17,12 @@ import com.apurv.workspace.entity.WorkspaceMember;
 import com.apurv.workspace.repository.WorkspaceMemberRepository;
 import com.apurv.workspace.repository.WorkspaceRepository;
 
+import org.springframework.context.ApplicationEventPublisher;
+import com.apurv.collaboration.event.EntityMutatedEvent;
+import com.apurv.collaboration.dto.EntityType;
+import com.apurv.collaboration.dto.ActionType;
+import com.apurv.collaboration.dto.DeletedPayload;
+
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 
@@ -28,6 +34,7 @@ public class WorkspaceService {
     private final WorkspaceRepository workspaceRepository;
     private final WorkspaceMemberRepository workspaceMemberRepository;
     private final WorkspaceAuthorizationService workspaceAuthorizationService;
+    private final ApplicationEventPublisher eventPublisher;
 
     @Transactional
     public WorkspaceResponse createWorkspace(WorkspaceRequest request, User currentUser) {
@@ -98,7 +105,10 @@ public class WorkspaceService {
 
         log.info("Workspace with id {} updated by user {}", workspaceId, currentUser.getId());
         int memberCount = workspaceMemberRepository.countByWorkspaceId(updatedWorkspace.getId());
-        return toWorkspaceResponse(updatedWorkspace, memberCount);
+        WorkspaceResponse response = toWorkspaceResponse(updatedWorkspace, memberCount);
+        eventPublisher.publishEvent(new EntityMutatedEvent(this, workspaceId.toString(), EntityType.WORKSPACE,
+                ActionType.UPDATED, response, currentUser.getId().toString()));
+        return response;
     }
 
     @Transactional
@@ -115,6 +125,8 @@ public class WorkspaceService {
 
         workspaceRepository.delete(workspace);
         log.info("Workspace with id {} deleted by user {}", workspaceId, currentUser.getId());
+        eventPublisher.publishEvent(new EntityMutatedEvent(this, workspaceId.toString(), EntityType.WORKSPACE,
+                ActionType.DELETED, new DeletedPayload(workspaceId), currentUser.getId().toString()));
     }
 
     protected Workspace getWorkspace(UUID id, String errorMessage) {
