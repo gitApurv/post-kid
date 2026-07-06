@@ -1,6 +1,7 @@
 package com.apurv.environment.service;
 
 import java.util.UUID;
+import java.util.List;
 
 import org.springframework.stereotype.Service;
 
@@ -17,6 +18,12 @@ import com.apurv.workspace.entity.Workspace;
 import com.apurv.workspace.entity.WorkspaceRole;
 import com.apurv.workspace.service.WorkspaceAuthorizationService;
 
+import org.springframework.context.ApplicationEventPublisher;
+import com.apurv.collaboration.event.EntityMutatedEvent;
+import com.apurv.collaboration.dto.EntityType;
+import com.apurv.collaboration.dto.ActionType;
+import com.apurv.collaboration.dto.DeletedPayload;
+
 import jakarta.transaction.Transactional;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -29,6 +36,7 @@ public class EnvironmentVariableService {
         private final EnvironmentService environmentService;
         private final EnvironmentVariableRepository environmentVariableRepository;
         private final WorkspaceAuthorizationService workspaceAuthorizationService;
+        private final ApplicationEventPublisher eventPublisher;
 
         @Transactional
         public VariableResponse addVariable(UUID workspaceId, UUID collectionId, UUID environmentId,
@@ -63,7 +71,11 @@ public class EnvironmentVariableService {
                                 collectionId,
                                 workspaceId);
 
-                return toVariableResponse(savedVariable);
+                VariableResponse response = toVariableResponse(savedVariable);
+                eventPublisher.publishEvent(
+                                new EntityMutatedEvent(this, workspaceId.toString(), EntityType.ENVIRONMENT_VARIABLE,
+                                                ActionType.CREATED, response, currentUser.getId().toString()));
+                return response;
         }
 
         @Transactional
@@ -99,7 +111,11 @@ public class EnvironmentVariableService {
                                 environmentId,
                                 collectionId,
                                 workspaceId);
-                return toVariableResponse(updatedVariable);
+                VariableResponse response = toVariableResponse(updatedVariable);
+                eventPublisher.publishEvent(
+                                new EntityMutatedEvent(this, workspaceId.toString(), EntityType.ENVIRONMENT_VARIABLE,
+                                                ActionType.UPDATED, response, currentUser.getId().toString()));
+                return response;
         }
 
         @Transactional
@@ -125,6 +141,9 @@ public class EnvironmentVariableService {
                                 environmentId,
                                 collectionId,
                                 workspaceId);
+                eventPublisher.publishEvent(new EntityMutatedEvent(this, workspaceId.toString(),
+                                EntityType.ENVIRONMENT_VARIABLE, ActionType.DELETED, new DeletedPayload(variableId),
+                                currentUser.getId().toString()));
         }
 
         protected Workspace findWorkspaceById(UUID workspaceId, String notFoundMessage) {
@@ -141,14 +160,35 @@ public class EnvironmentVariableService {
                 return environmentService.findEnvironmentByIdAndCollection(environmentId, collection, notFoundMessage);
         }
 
+        @Transactional
+        public List<VariableResponse> getVariables(UUID workspaceId, UUID collectionId, UUID environmentId,
+                        User currentUser) {
+                Workspace workspace = findWorkspaceById(workspaceId, "Workspace not found");
+                workspaceAuthorizationService.requireRole(workspace.getId(), currentUser.getId(),
+                                WorkspaceRole.ADMIN, WorkspaceRole.MEMBER, WorkspaceRole.VIEWER);
+
+                Collection collection = findCollectionByIdAndWorkspace(collectionId, workspace, "Collection not found");
+                Environment environment = findEnvironmentByIdAndCollection(environmentId, collection,
+                                "Environment not found");
+
+                return environmentVariableRepository.findByEnvironment(environment).stream()
+                                .map(this::toVariableResponse)
+                                .toList();
+        }
+
         protected EnvironmentVariable findVariableByIdAndEnvironment(UUID variableId, Environment environment,
                         String notFoundMessage) {
                 return environmentVariableRepository.findByIdAndEnvironment(variableId, environment)
                                 .orElseThrow(() -> new ResourceNotFoundException(notFoundMessage));
         }
 
-        protected VariableResponse toVariableResponse(EnvironmentVariable variable) {
-                return environmentService.toVariableResponse(variable);
+        private VariableResponse toVariableResponse(EnvironmentVariable variable) {
+                return VariableResponse.builder()
+                                .id(variable.getId())
+                                .key(variable.getKey())
+                                .value(variable.getValue())
+                                .environmentId(variable.getEnvironment().getId())
+                                .build();
         }
 
 }

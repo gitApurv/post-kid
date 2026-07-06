@@ -13,15 +13,18 @@ import com.apurv.common.exception.DuplicateResourceException;
 import com.apurv.common.exception.ResourceNotFoundException;
 import com.apurv.environment.dto.EnvironmentRequest;
 import com.apurv.environment.dto.EnvironmentResponse;
-import com.apurv.environment.dto.VariableResponse;
 import com.apurv.environment.entity.Environment;
-import com.apurv.environment.entity.EnvironmentVariable;
 import com.apurv.environment.repository.EnvironmentRepository;
-import com.apurv.environment.repository.EnvironmentVariableRepository;
 import com.apurv.workspace.entity.Workspace;
 import com.apurv.workspace.entity.WorkspaceRole;
 import com.apurv.workspace.repository.WorkspaceRepository;
 import com.apurv.workspace.service.WorkspaceAuthorizationService;
+
+import org.springframework.context.ApplicationEventPublisher;
+import com.apurv.collaboration.event.EntityMutatedEvent;
+import com.apurv.collaboration.dto.EntityType;
+import com.apurv.collaboration.dto.ActionType;
+import com.apurv.collaboration.dto.DeletedPayload;
 
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -35,7 +38,7 @@ public class EnvironmentService {
         private final WorkspaceAuthorizationService workspaceAuthorizationService;
         private final CollectionRepository collectionRepository;
         private final WorkspaceRepository workspaceRepository;
-        private final EnvironmentVariableRepository environmentVariableRepository;
+        private final ApplicationEventPublisher eventPublisher;
 
         @Transactional
         public EnvironmentResponse createEnvironment(UUID workspaceId, UUID collectionId, EnvironmentRequest request,
@@ -62,7 +65,10 @@ public class EnvironmentService {
                 log.info("Created environment with Id: {} in Collection: {} in Workspace: {}", savedEnvironment.getId(),
                                 collectionId,
                                 workspaceId);
-                return toEnvironmentResponse(savedEnvironment);
+                EnvironmentResponse response = toEnvironmentResponse(savedEnvironment);
+                eventPublisher.publishEvent(new EntityMutatedEvent(this, workspaceId.toString(), EntityType.ENVIRONMENT,
+                                ActionType.CREATED, response, currentUser.getId().toString()));
+                return response;
         }
 
         @Transactional(readOnly = true)
@@ -108,7 +114,10 @@ public class EnvironmentService {
                                 updatedEnvironment.getId(),
                                 collectionId,
                                 workspaceId);
-                return toEnvironmentResponse(updatedEnvironment);
+                EnvironmentResponse response = toEnvironmentResponse(updatedEnvironment);
+                eventPublisher.publishEvent(new EntityMutatedEvent(this, workspaceId.toString(), EntityType.ENVIRONMENT,
+                                ActionType.UPDATED, response, currentUser.getId().toString()));
+                return response;
         }
 
         @Transactional
@@ -125,6 +134,8 @@ public class EnvironmentService {
                 environmentRepository.delete(environment);
                 log.info("Deleted environment with Id: {} in Collection: {} in Workspace: {}", environmentId,
                                 collectionId, workspaceId);
+                eventPublisher.publishEvent(new EntityMutatedEvent(this, workspaceId.toString(), EntityType.ENVIRONMENT,
+                                ActionType.DELETED, new DeletedPayload(environmentId), currentUser.getId().toString()));
         }
 
         @Transactional(readOnly = true)
@@ -152,18 +163,9 @@ public class EnvironmentService {
                                 .id(environment.getId())
                                 .name(environment.getName())
                                 .environmentColor(environment.getEnvironmentColor())
-                                .variables(environmentVariableRepository.findByEnvironment(environment).stream()
-                                                .map(this::toVariableResponse).toList())
                                 .createdAt(environment.getCreatedAt())
                                 .updatedAt(environment.getUpdatedAt())
-                                .build();
-        }
-
-        protected VariableResponse toVariableResponse(EnvironmentVariable variable) {
-                return VariableResponse.builder()
-                                .id(variable.getId())
-                                .key(variable.getKey())
-                                .value(variable.getValue())
+                                .collectionId(environment.getCollection().getId())
                                 .build();
         }
 
