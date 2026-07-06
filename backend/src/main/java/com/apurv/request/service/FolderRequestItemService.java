@@ -19,6 +19,12 @@ import com.apurv.workspace.entity.Workspace;
 import com.apurv.workspace.entity.WorkspaceRole;
 import com.apurv.workspace.service.WorkspaceAuthorizationService;
 
+import org.springframework.context.ApplicationEventPublisher;
+import com.apurv.collaboration.event.EntityMutatedEvent;
+import com.apurv.collaboration.dto.EntityType;
+import com.apurv.collaboration.dto.ActionType;
+import com.apurv.collaboration.dto.DeletedPayload;
+
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 
@@ -31,6 +37,7 @@ public class FolderRequestItemService {
         private final RequestItemRepository requestItemRepository;
         private final WorkspaceAuthorizationService workspaceAuthorizationService;
         private final CollectionRequestItemService collectionRequestItemService;
+        private final ApplicationEventPublisher eventPublisher;
 
         @Transactional
         public RequestItemResponse createRequestItem(UUID workspaceId, UUID collectionId, UUID folderId,
@@ -46,6 +53,7 @@ public class FolderRequestItemService {
                 Folder folder = findFolderByIdAndCollection(folderId, collection, "Folder not found");
 
                 RequestItem requestItem = RequestItem.builder()
+                                .collection(collection)
                                 .folder(folder)
                                 .createdBy(currentUser)
                                 .name(request.getName())
@@ -62,7 +70,10 @@ public class FolderRequestItemService {
                 log.info("Created request item with ID: {} in collection ID: {} in workspace ID: {}",
                                 savedRequestItem.getId(),
                                 collectionId, workspaceId);
-                return toRequestItemResponse(savedRequestItem);
+                RequestItemResponse response = toRequestItemResponse(savedRequestItem);
+                eventPublisher.publishEvent(new EntityMutatedEvent(this, workspaceId.toString(), EntityType.REQUEST,
+                                ActionType.CREATED, response, currentUser.getId().toString()));
+                return response;
         }
 
         @Transactional(readOnly = true)
@@ -110,7 +121,10 @@ public class FolderRequestItemService {
                 log.info("Updated request item with ID: {} in collection ID: {} in workspace ID: {}",
                                 updatedRequestItem.getId(),
                                 collectionId, workspaceId);
-                return toRequestItemResponse(updatedRequestItem);
+                RequestItemResponse response = toRequestItemResponse(updatedRequestItem);
+                eventPublisher.publishEvent(new EntityMutatedEvent(this, workspaceId.toString(), EntityType.REQUEST,
+                                ActionType.UPDATED, response, currentUser.getId().toString()));
+                return response;
         }
 
         @Transactional
@@ -131,6 +145,8 @@ public class FolderRequestItemService {
                 log.info("Deleted request item with ID: {} in folder ID: {} in collection ID: {} in workspace ID: {}",
                                 requestItem.getId(),
                                 folderId, collectionId, workspaceId);
+                eventPublisher.publishEvent(new EntityMutatedEvent(this, workspaceId.toString(), EntityType.REQUEST,
+                                ActionType.DELETED, new DeletedPayload(requestId), currentUser.getId().toString()));
         }
 
         @Transactional(readOnly = true)

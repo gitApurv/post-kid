@@ -19,6 +19,12 @@ import com.apurv.workspace.entity.WorkspaceRole;
 import com.apurv.workspace.repository.WorkspaceRepository;
 import com.apurv.workspace.service.WorkspaceAuthorizationService;
 
+import org.springframework.context.ApplicationEventPublisher;
+import com.apurv.collaboration.event.EntityMutatedEvent;
+import com.apurv.collaboration.dto.EntityType;
+import com.apurv.collaboration.dto.ActionType;
+import com.apurv.collaboration.dto.DeletedPayload;
+
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 
@@ -31,6 +37,7 @@ public class CollectionRequestItemService {
         private final CollectionRepository collectionRepository;
         private final WorkspaceRepository workspaceRepository;
         private final WorkspaceAuthorizationService workspaceAuthorizationService;
+        private final ApplicationEventPublisher eventPublisher;
 
         @Transactional
         public RequestItemResponse createRequestItem(UUID workspaceId, UUID collectionId, RequestItemRequest request,
@@ -59,7 +66,10 @@ public class CollectionRequestItemService {
                 log.info("Created request item with ID: {} in collection ID: {} in workspace ID: {}",
                                 savedRequestItem.getId(),
                                 collectionId, workspaceId);
-                return toRequestItemResponse(savedRequestItem);
+                RequestItemResponse response = toRequestItemResponse(savedRequestItem);
+                eventPublisher.publishEvent(new EntityMutatedEvent(this, workspaceId.toString(), EntityType.REQUEST,
+                                ActionType.CREATED, response, currentUser.getId().toString()));
+                return response;
         }
 
         @Transactional(readOnly = true)
@@ -104,7 +114,10 @@ public class CollectionRequestItemService {
                 log.info("Updated request item with ID: {} in collection ID: {} in workspace ID: {}",
                                 updatedRequestItem.getId(),
                                 collectionId, workspaceId);
-                return toRequestItemResponse(updatedRequestItem);
+                RequestItemResponse response = toRequestItemResponse(updatedRequestItem);
+                eventPublisher.publishEvent(new EntityMutatedEvent(this, workspaceId.toString(), EntityType.REQUEST,
+                                ActionType.UPDATED, response, currentUser.getId().toString()));
+                return response;
         }
 
         @Transactional
@@ -123,6 +136,8 @@ public class CollectionRequestItemService {
                 log.info("Deleted request item with ID: {} in collection ID: {} in workspace ID: {}",
                                 requestItem.getId(),
                                 collectionId, workspaceId);
+                eventPublisher.publishEvent(new EntityMutatedEvent(this, workspaceId.toString(), EntityType.REQUEST,
+                                ActionType.DELETED, new DeletedPayload(requestId), currentUser.getId().toString()));
         }
 
         @Transactional(readOnly = true)
@@ -157,9 +172,12 @@ public class CollectionRequestItemService {
                                 .authValue(requestItem.getAuthValue())
                                 .timeoutMs(requestItem.getTimeoutMs() != null ? requestItem.getTimeoutMs() : 5000)
                                 .createdBy(requestItem.getCreatedBy().getUsername())
-                                .updatedBy(requestItem.getUpdatedBy() != null ? requestItem.getUpdatedBy().getUsername() : null)
+                                .updatedBy(requestItem.getUpdatedBy() != null ? requestItem.getUpdatedBy().getUsername()
+                                                : null)
                                 .createdAt(requestItem.getCreatedAt())
                                 .updatedAt(requestItem.getUpdatedAt())
+                                .collectionId(requestItem.getCollection().getId())
+                                .folderId(requestItem.getFolder() != null ? requestItem.getFolder().getId() : null)
                                 .build();
         }
 

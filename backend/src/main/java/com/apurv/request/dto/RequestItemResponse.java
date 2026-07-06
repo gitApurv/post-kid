@@ -26,5 +26,7 @@ public class RequestItemResponse {
     private String updatedBy;
     private Instant createdAt;
     private Instant updatedAt;
+    private UUID collectionId;
+    private UUID folderId;
 
 }
