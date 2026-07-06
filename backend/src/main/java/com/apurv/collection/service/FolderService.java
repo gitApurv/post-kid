@@ -17,6 +17,12 @@ import com.apurv.workspace.entity.Workspace;
 import com.apurv.workspace.entity.WorkspaceRole;
 import com.apurv.workspace.service.WorkspaceAuthorizationService;
 
+import org.springframework.context.ApplicationEventPublisher;
+import com.apurv.collaboration.event.EntityMutatedEvent;
+import com.apurv.collaboration.dto.EntityType;
+import com.apurv.collaboration.dto.ActionType;
+import com.apurv.collaboration.dto.DeletedPayload;
+
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 
@@ -28,6 +34,7 @@ public class FolderService {
         private final CollectionService collectionService;
         private final FolderRepository folderRepository;
         private final WorkspaceAuthorizationService workspaceAuthorizationService;
+        private final ApplicationEventPublisher eventPublisher;
 
         @Transactional
         public FolderResponse createFolder(UUID workspaceId, UUID collectionId, FolderRequest request,
@@ -47,7 +54,10 @@ public class FolderService {
 
                 log.info("Created new root folder with ID: {} in collection ID: {}", savedFolder.getId(),
                                 collection.getId());
-                return toFolderResponse(savedFolder);
+                FolderResponse response = toFolderResponse(savedFolder);
+                eventPublisher.publishEvent(new EntityMutatedEvent(this, workspaceId.toString(), EntityType.FOLDER,
+                                ActionType.CREATED, response, currentUser.getId().toString()));
+                return response;
         }
 
         @Transactional
@@ -70,7 +80,10 @@ public class FolderService {
 
                 log.info("Created new subfolder with ID: {} under parent folder ID: {} in collection ID: {}",
                                 savedFolder.getId(), parent.getId(), collection.getId());
-                return toFolderResponse(savedFolder);
+                FolderResponse response = toFolderResponse(savedFolder);
+                eventPublisher.publishEvent(new EntityMutatedEvent(this, workspaceId.toString(), EntityType.FOLDER,
+                                ActionType.CREATED, response, currentUser.getId().toString()));
+                return response;
         }
 
         @Transactional(readOnly = true)
@@ -118,6 +131,8 @@ public class FolderService {
                 folderRepository.delete(folder);
                 log.info("Deleted folder with ID: {} in collection ID: {}", folder.getId(),
                                 collection.getId());
+                eventPublisher.publishEvent(new EntityMutatedEvent(this, workspaceId.toString(), EntityType.FOLDER,
+                                ActionType.DELETED, new DeletedPayload(folderId), currentUser.getId().toString()));
         }
 
         @Transactional(readOnly = true)
@@ -142,6 +157,10 @@ public class FolderService {
                                 .id(savedFolder.getId())
                                 .name(savedFolder.getName())
                                 .createdAt(savedFolder.getCreatedAt())
+                                .collectionId(savedFolder.getCollection().getId())
+                                .parentFolderId(savedFolder.getParentFolder() != null
+                                                ? savedFolder.getParentFolder().getId()
+                                                : null)
                                 .build();
         }
 

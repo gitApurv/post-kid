@@ -18,6 +18,12 @@ import com.apurv.collection.repository.CollectionRepository;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import org.springframework.context.ApplicationEventPublisher;
+import com.apurv.collaboration.event.EntityMutatedEvent;
+import com.apurv.collaboration.dto.EntityType;
+import com.apurv.collaboration.dto.ActionType;
+import com.apurv.collaboration.dto.DeletedPayload;
+
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 
@@ -29,6 +35,7 @@ public class CollectionService {
     private final CollectionRepository collectionRepository;
     private final WorkspaceRepository workspaceRepository;
     private final WorkspaceAuthorizationService workspaceAuthorizationService;
+    private final ApplicationEventPublisher eventPublisher;
 
     @Transactional
     public CollectionResponse createCollection(UUID workspaceId, CollectionRequest request, User currentUser) {
@@ -48,7 +55,10 @@ public class CollectionService {
         Collection savedCollection = collectionRepository.saveAndFlush(collection);
 
         log.info("Created new collection with ID: {} in workspace: {}", savedCollection.getId(), workspace.getId());
-        return toCollectionResponse(savedCollection);
+        CollectionResponse response = toCollectionResponse(savedCollection);
+        eventPublisher.publishEvent(new EntityMutatedEvent(this, workspaceId.toString(), EntityType.COLLECTION,
+                ActionType.CREATED, response, currentUser.getId().toString()));
+        return response;
     }
 
     @Transactional(readOnly = true)
@@ -83,7 +93,10 @@ public class CollectionService {
         Collection updatedCollection = collectionRepository.saveAndFlush(collection);
 
         log.info("Updated collection with ID: {} in workspace: {}", updatedCollection.getId(), workspace.getId());
-        return toCollectionResponse(updatedCollection);
+        CollectionResponse response = toCollectionResponse(updatedCollection);
+        eventPublisher.publishEvent(new EntityMutatedEvent(this, workspaceId.toString(), EntityType.COLLECTION,
+                ActionType.UPDATED, response, currentUser.getId().toString()));
+        return response;
     }
 
     @Transactional
@@ -96,6 +109,8 @@ public class CollectionService {
         collectionRepository.delete(collection);
 
         log.info("Deleted collection with ID: {} in workspace: {}", collection.getId(), workspace.getId());
+        eventPublisher.publishEvent(new EntityMutatedEvent(this, workspaceId.toString(), EntityType.COLLECTION,
+                ActionType.DELETED, new DeletedPayload(collectionId), currentUser.getId().toString()));
     }
 
     @Transactional(readOnly = true)
@@ -117,6 +132,7 @@ public class CollectionService {
                 .description(collection.getDescription())
                 .createdAt(collection.getCreatedAt())
                 .updatedAt(collection.getUpdatedAt())
+                .workspaceId(collection.getWorkspace().getId())
                 .build();
     }
 

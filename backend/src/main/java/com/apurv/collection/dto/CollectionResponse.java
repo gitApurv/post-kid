@@ -19,5 +19,6 @@ public class CollectionResponse {
     private String description;
     private Instant createdAt;
     private Instant updatedAt;
+    private UUID workspaceId;
 
 }
