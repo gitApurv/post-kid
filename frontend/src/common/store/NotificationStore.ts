@@ -1,6 +1,6 @@
 import { create } from "zustand";
-import type { NotificationType } from "../types/NotificationType";
-import type NotificationState from "../types/NotificationState";
+import type { NotificationType } from "../types/items/NotificationType";
+import type NotificationState from "../types/state/NotificationState";
 
 const useNotificationStore = create<NotificationState>((set) => ({
   notifications: [],

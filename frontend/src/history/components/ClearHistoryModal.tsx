@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { createPortal } from "react-dom";
 import { AlertTriangle, Loader2 } from "lucide-react";
-import type ModalProps from "../../common/types/ModalProps";
+import type ModalProps from "../../common/types/props/ModalProps";
 import useHistoryStore from "../store/historyStore";
 import HistoryService from "../service/HistoryService";
 

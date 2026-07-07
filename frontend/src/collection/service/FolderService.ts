@@ -1,6 +1,6 @@
 import axios from "axios";
 import api from "../../config/axios";
-import type ApiResponse from "../../common/types/ApiResponse";
+import type ApiResponse from "../../common/types/response/ApiResponse";
 import type FolderRequest from "../types/request/FolderRequest";
 import type FolderResponse from "../types/response/FolderResponse";
 import type RequestItemResponse from "../../request/types/response/RequestItemResponse";

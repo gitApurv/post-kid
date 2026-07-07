@@ -8,7 +8,7 @@ import {
   LogOut,
   Terminal,
 } from "lucide-react";
-import useAuthStore from "../../auth/store/AuthStore";
+import useAuthStore from "../../auth/store/authStore";
 
 export default function Sidebar() {
   const location = useLocation();

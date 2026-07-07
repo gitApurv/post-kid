@@ -1,5 +1,5 @@
-import type NotificationItem from "./NotificationItem";
-import type { NotificationType } from "./NotificationType";
+import type NotificationItem from "../items/NotificationItem";
+import type { NotificationType } from "../items/NotificationType";
 
 export default interface NotificationState {
   notifications: NotificationItem[];

@@ -1,6 +1,6 @@
 import axios from "axios";
 import api from "../../config/axios";
-import type ApiResponse from "../../common/types/ApiResponse";
+import type ApiResponse from "../../common/types/response/ApiResponse";
 import type HistoryResponse from "../types/response/HistoryResponse";
 
 function extractError(error: unknown, fallback: string): string {

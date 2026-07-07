@@ -13,11 +13,11 @@ import {
 } from "lucide-react";
 import md5 from "blueimp-md5";
 import useWorkspaceStore from "../store/workspaceStore";
-import useAuthStore from "../../auth/store/AuthStore";
+import useAuthStore from "../../auth/store/authStore";
 import WorkspaceService from "../service/WorkspaceService";
 import type MemberResponse from "../types/response/MemberResponse";
 import type { WorkspaceRole } from "../types/response/MemberResponse";
-import type ModalProps from "../../common/types/ModalProps";
+import type ModalProps from "../../common/types/props/ModalProps";
 
 export type WorkspaceSettingsModalProps = ModalProps;
 

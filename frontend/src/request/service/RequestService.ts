@@ -1,6 +1,6 @@
 import axios from "axios";
 import api from "../../config/axios";
-import type ApiResponse from "../../common/types/ApiResponse";
+import type ApiResponse from "../../common/types/response/ApiResponse";
 import type RequestItemResponse from "../types/response/RequestItemResponse";
 import type ExecutionResponse from "../types/response/ExecutionResponse";
 import type RequestItemRequest from "../types/request/RequestItemRequest";

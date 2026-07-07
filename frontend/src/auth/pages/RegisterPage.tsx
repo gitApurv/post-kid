@@ -11,7 +11,7 @@ import {
   ShieldCheck,
   Cpu,
 } from "lucide-react";
-import useAuthStore from "../store/AuthStore";
+import useAuthStore from "../store/authStore";
 
 export default function RegisterPage() {
   const registerAction = useAuthStore((state) => state.registerAction);

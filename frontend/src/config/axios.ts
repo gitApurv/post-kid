@@ -1,5 +1,5 @@
 import axios from "axios";
-import type ApiResponse from "../common/types/ApiResponse";
+import type ApiResponse from "../common/types/response/ApiResponse";
 import type AuthResponse from "../auth/types/response/AuthResponse";
 import type TokenRefreshRequest from "../auth/types/request/TokenRefreshRequest";
 
