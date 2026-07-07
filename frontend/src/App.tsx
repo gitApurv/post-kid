@@ -1,10 +1,11 @@
 import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
-import useAuthStore from "./auth/store/AuthStore";
+import useAuthStore from "./auth/store/authStore";
 import DashboardLayout from "./common/layouts/DashboardLayout";
 import LoginPage from "./auth/pages/LoginPage";
 import RegisterPage from "./auth/pages/RegisterPage";
 import HomePage from "./common/pages/HomePage";
 import HistoryPage from "./history/pages/HistoryPage";
+import ToastContainer from "./common/components/ToastContainer";
 
 function App() {
   const isAuthenticated = useAuthStore((state) => state.isAuthenticated);
@@ -43,6 +44,7 @@ function App() {
         {/* Fallback wildcard */}
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
+      <ToastContainer />
     </BrowserRouter>
   );
 }
