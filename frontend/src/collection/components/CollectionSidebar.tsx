@@ -50,8 +50,8 @@ function CollectionTreeWrapper({
   const activeCollectionId = useRequestStore(
     (state) => state.activeCollectionId,
   );
-  const setActiveCollectionAction = useRequestStore(
-    (state) => state.setActiveCollectionAction,
+  const setActiveCollection = useRequestStore(
+    (state) => state.setActiveCollection,
   );
   const folders = useRootFolders(collection.id);
   const requestItems = useRootRequests(collection.id);
@@ -73,7 +73,7 @@ function CollectionTreeWrapper({
 
         <span
           onClick={() => {
-            setActiveCollectionAction(collection.id);
+            setActiveCollection(collection.id);
             if (!isExpanded) {
               toggleCollection(collection.id);
             }
@@ -190,8 +190,8 @@ export default function CollectionSidebar() {
   const activeCollectionId = useRequestStore(
     (state) => state.activeCollectionId,
   );
-  const setActiveCollectionAction = useRequestStore(
-    (state) => state.setActiveCollectionAction,
+  const setActiveCollection = useRequestStore(
+    (state) => state.setActiveCollection,
   );
 
   const [expandedCollections, setExpandedCollections] = useState<
@@ -476,7 +476,7 @@ export default function CollectionSidebar() {
       if (res && !res.success) {
         alert(res.error || "Failed to delete collection.");
       } else if (activeCollectionId === collectionId) {
-        setActiveCollectionAction(null);
+        setActiveCollection(null);
       }
     }
   };

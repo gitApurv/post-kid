@@ -3,6 +3,7 @@ import { ChevronDown, Layers2, Settings, Zap } from "lucide-react";
 import { useLocation } from "react-router-dom";
 import useWorkspaceStore from "../../workspace/store/workspaceStore";
 import WorkspaceSettingsModal from "../../workspace/components/WorkspaceSettingsModal";
+import WorkspaceMembersNav from "../../workspace/components/WorkspaceMembersNav";
 
 export default function Navbar() {
   const workspaces = useWorkspaceStore((state) => state.workspaces);
@@ -95,11 +96,10 @@ export default function Navbar() {
                             setActiveWorkspace(w.id);
                             setIsOpen(false);
                           }}
-                          className={`w-full text-left px-2.5 py-2 text-xs rounded-lg transition-standard flex items-center justify-between cursor-pointer ${
-                            isSelected
+                          className={`w-full text-left px-2.5 py-2 text-xs rounded-lg transition-standard flex items-center justify-between cursor-pointer ${isSelected
                               ? "bg-brand-primary/10 text-white font-medium border border-brand-primary/10"
                               : "text-slate-400 hover:text-slate-200 hover:bg-white/[0.02] border border-transparent"
-                          }`}
+                            }`}
                         >
                           <span className="truncate text-xs">{w.name}</span>
                           {isSelected && (
@@ -124,6 +124,7 @@ export default function Navbar() {
               )}
             </div>
           )}
+          <WorkspaceMembersNav />
         </div>
       </header>
 

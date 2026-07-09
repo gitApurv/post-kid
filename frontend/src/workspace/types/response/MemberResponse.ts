@@ -1,4 +1,4 @@
-export type WorkspaceRole = "ADMIN" | "MEMBER" | "VIEWER";
+import type { WorkspaceRole } from "../items/WorkspaceRole";
 
 export default interface MemberResponse {
   userId: string;
@@ -6,4 +6,5 @@ export default interface MemberResponse {
   email: string;
   role: WorkspaceRole;
   joinedAt: string;
+  workspaceId: string;
 }

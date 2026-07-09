@@ -24,8 +24,8 @@ export default function RequestTreeItem({
   onDelete,
 }: RequestTreeItemProps) {
   const activeRequestId = useRequestStore((state) => state.activeRequestId);
-  const setActiveRequestDirectlyAction = useRequestStore(
-    (state) => state.setActiveRequestDirectlyAction,
+  const setActiveRequestDirectly = useRequestStore(
+    (state) => state.setActiveRequestDirectly,
   );
 
   const isActive = request.id === activeRequestId;
@@ -43,7 +43,7 @@ export default function RequestTreeItem({
             });
           }
         }
-        setActiveRequestDirectlyAction(request);
+        setActiveRequestDirectly(request);
       }}
       className={`group/req flex items-center justify-between px-2.5 py-1.5 rounded text-[11px] cursor-pointer transition-standard relative ${
         isActive

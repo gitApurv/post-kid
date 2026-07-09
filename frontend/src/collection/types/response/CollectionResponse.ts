@@ -4,4 +4,5 @@ export default interface CollectionResponse {
   description: string | null;
   createdAt: string;
   updatedAt: string;
+  workspaceId: string;
 }

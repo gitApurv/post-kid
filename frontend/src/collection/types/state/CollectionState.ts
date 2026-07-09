@@ -10,6 +10,9 @@ export default interface CollectionState {
 
   removeCollection: (id: string) => void;
 
+  /** Mutation-only cascade: removes the collection + cascades folder/request cleanup. No API call. */
+  cascadeRemoveCollection: (collectionId: string) => void;
+
   setCollectionLoading: (id: string, isLoading: boolean) => void;
 
   reset: () => void;

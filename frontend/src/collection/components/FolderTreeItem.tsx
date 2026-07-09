@@ -95,7 +95,7 @@ export default function FolderTreeItem({
         `Are you sure you want to permanently delete folder '${folder.name}' and all its contents?`,
       )
     ) {
-      const response = await deleteFolderAction(collectionId, folder.id);
+      const response = await deleteFolderAction(folder.id);
       if (response && !response.success) {
         alert(response.error || "Failed to delete folder.");
       }

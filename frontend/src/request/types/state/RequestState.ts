@@ -29,6 +29,10 @@ export default interface RequestState {
 
   setActiveRequest: (activeRequest: RequestItem | null) => void;
 
+  setActiveRequestDirectly: (req: RequestItem | null) => void;
+
+  setActiveCollection: (id: string | null) => void;
+
   updateActiveRequestFields: (fields: Partial<RequestItem>) => void;
 
   setExecuting: (isExecuting: boolean) => void;
@@ -38,10 +42,6 @@ export default interface RequestState {
   reset: () => void;
 
   // Actions
-  setActiveRequestDirectlyAction: (req: RequestItem | null) => void;
-
-  setActiveCollectionAction: (id: string | null) => void;
-
   updateActiveRequestAction: (
     fields: Partial<RequestItem>,
   ) => Promise<{ success: boolean; error?: string }>;

@@ -16,7 +16,7 @@ import useWorkspaceStore from "../store/workspaceStore";
 import useAuthStore from "../../auth/store/authStore";
 import WorkspaceService from "../service/WorkspaceService";
 import type MemberResponse from "../types/response/MemberResponse";
-import type { WorkspaceRole } from "../types/response/MemberResponse";
+import type { WorkspaceRole } from "../types/items/WorkspaceRole";
 import type ModalProps from "../../common/types/props/ModalProps";
 
 export type WorkspaceSettingsModalProps = ModalProps;

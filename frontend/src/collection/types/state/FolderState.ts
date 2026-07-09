@@ -13,15 +13,19 @@ export default interface FolderState {
 
   removeFoldersByCollectionId: (collectionId: string) => void;
 
+  removeFoldersByIds: (ids: string[]) => void;
+
   setFolderLoading: (id: string, isLoading: boolean) => void;
 
   toggleFolderExpansion: (folderId: string, expanded: boolean) => void;
 
   reset: () => void;
 
+  /** Mutation-only cascade: removes folder + all descendants + their requests. No API call. */
+  cascadeRemoveFolder: (folderId: string) => void;
+
   // Actions
   deleteFolderAction: (
-    collectionId: string,
     folderId: string,
   ) => Promise<{ success: boolean; error?: string }>;
 }

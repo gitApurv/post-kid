@@ -1,4 +1,4 @@
-import type { WorkspaceRole } from "../response/MemberResponse";
+import type { WorkspaceRole } from "../items/WorkspaceRole";
 
 export default interface InviteMemberRequest {
   email: string;

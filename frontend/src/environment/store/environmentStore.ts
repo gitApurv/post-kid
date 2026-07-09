@@ -4,6 +4,7 @@ import type Environment from "../types/items/Environment";
 import type EnvironmentState from "../types/state/EnvironmentState";
 import EnvironmentService from "../service/EnvironmentService";
 import type EnvironmentResponse from "../types/response/EnvironmentResponse";
+import useVariableStore from "./variableStore";
 
 // ── Utility: map EnvironmentResponse DTO → Environment ──
 function mapResponseToEnvironment(res: EnvironmentResponse): Environment {
@@ -11,12 +12,8 @@ function mapResponseToEnvironment(res: EnvironmentResponse): Environment {
     id: res.id,
     name: res.name,
     color: res.environmentColor,
-    variables: Object.fromEntries(
-      res.variables.map((variable) => [
-        variable.id,
-        { id: variable.id, key: variable.key, value: variable.value },
-      ]),
-    ),
+    collectionId: res.collectionId,
+    variables: {},
   };
 }
 
@@ -48,42 +45,18 @@ const useEnvironmentStore = create<EnvironmentState>((set, get) => ({
 
   setActiveEnvironmentId: (id) => set({ activeEnvironmentId: id }),
 
-  upsertVariable: (environmentId, variable) =>
-    set((state) => {
-      const existing = state.environments[environmentId];
-      if (!existing) return state;
-      return {
-        environments: {
-          ...state.environments,
-          [environmentId]: {
-            ...existing,
-            variables: { ...existing.variables, [variable.id]: variable },
-          },
-        },
-      };
-    }),
-
-  removeVariable: (environmentId, variableId) =>
-    set((state) => {
-      const existing = state.environments[environmentId];
-      if (!existing) return state;
-
-      const remainingVariables = { ...existing.variables };
-      delete remainingVariables[variableId];
-
-      return {
-        environments: {
-          ...state.environments,
-          [environmentId]: { ...existing, variables: remainingVariables },
-        },
-      };
-    }),
-
   reset: () =>
     set({
       environments: {},
       activeEnvironmentId: "",
     }),
+
+  // ─── Cascade Mutation ────────────────────────────────────────
+
+  cascadeRemoveEnvironment: (environmentId) => {
+    useEnvironmentStore.getState().removeEnvironment(environmentId);
+    useVariableStore.getState().removeVariablesByEnvironmentId(environmentId);
+  },
 
   // ─── Actions ─────────────────────────────────────────────────
 
@@ -112,6 +85,27 @@ const useEnvironmentStore = create<EnvironmentState>((set, get) => ({
     if (!activeEnvironmentId || !record[activeEnvironmentId]) {
       get().setActiveEnvironmentId(ids[0] ?? "");
     }
+
+    return { success: true };
+  },
+
+  deleteEnvironmentAction: async (environmentId) => {
+    const activeWorkspaceId = useWorkspaceStore.getState().activeWorkspaceId;
+    if (!activeWorkspaceId)
+      return { success: false, error: "No active workspace selected" };
+
+    const environment = get().environments[environmentId];
+    if (!environment) return { success: true };
+    const collectionId = environment.collectionId;
+
+    const response = await EnvironmentService.deleteEnvironment(
+      activeWorkspaceId,
+      collectionId,
+      environmentId,
+    );
+    if (!response.success) return response;
+
+    get().cascadeRemoveEnvironment(environmentId);
 
     return { success: true };
   },

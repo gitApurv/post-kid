@@ -12,4 +12,6 @@ export default interface RequestItemResponse {
   updatedBy: string | null;
   createdAt: string;
   updatedAt: string;
+  collectionId: string;
+  folderId: string | null;
 }

@@ -8,6 +8,7 @@ import useFolderStore from "../../collection/store/FolderStore";
 import useRequestStore from "../../request/store/requestStore";
 import useEnvironmentStore from "../../environment/store/environmentStore";
 import useHistoryStore from "../../history/store/historyStore";
+import useWebsocketStore from "../../collaboration/store/useWebsocketStore";
 
 // ── Utility: derive Gravatar URL from email ──
 async function getGravatarUrl(email: string): Promise<string> {
@@ -46,6 +47,7 @@ const useAuthStore = create<AuthState>((set, get) => ({
 
     const avatar = await getGravatarUrl(res.data.email);
     const user: UserItem = {
+      id: res.data.userId,
       name: res.data.username,
       email: res.data.email,
       avatar,
@@ -67,6 +69,7 @@ const useAuthStore = create<AuthState>((set, get) => ({
 
     const avatar = await getGravatarUrl(res.data.email);
     const user: UserItem = {
+      id: res.data.userId,
       name: res.data.username,
       email: res.data.email,
       avatar,
@@ -99,6 +102,9 @@ const useAuthStore = create<AuthState>((set, get) => ({
     useRequestStore.getState().reset();
     useEnvironmentStore.getState().reset();
     useHistoryStore.getState().reset();
+
+    // Close WebSocket connection cleanly on logout
+    useWebsocketStore.getState().disconnect();
 
     await AuthService.logout(refreshToken);
 

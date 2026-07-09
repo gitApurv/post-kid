@@ -1,5 +1,4 @@
 import type Environment from "../items/Environment";
-import type Variable from "../items/Variable";
 
 export default interface EnvironmentState {
   environments: Record<string, Environment>;
@@ -14,9 +13,8 @@ export default interface EnvironmentState {
 
   setActiveEnvironmentId: (id: string) => void;
 
-  upsertVariable: (environmentId: string, variable: Variable) => void;
-
-  removeVariable: (environmentId: string, variableId: string) => void;
+  /** Mutation-only cascade: removes the environment + clears its variables from variableStore. No API call. */
+  cascadeRemoveEnvironment: (environmentId: string) => void;
 
   reset: () => void;
 
@@ -24,4 +22,10 @@ export default interface EnvironmentState {
   fetchEnvironmentsAction: (
     collectionId: string,
   ) => Promise<{ success: boolean; error?: string }>;
+
+  deleteEnvironmentAction: (
+    environmentId: string,
+  ) => Promise<{ success: boolean; error?: string }>;
+
 }
+

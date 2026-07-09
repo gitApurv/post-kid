@@ -7,6 +7,8 @@ import useEnvironmentStore from "../../environment/store/environmentStore";
 import useRequestStore from "../../request/store/requestStore";
 import WorkspaceService from "../service/WorkspaceService";
 import CollectionService from "../../collection/service/CollectionService";
+import useWorkspaceMemberStore from "./WorkspaceMemberStore";
+import WorkspaceMemberService from "../service/WorkspaceMemberService";
 
 const useWorkspaceStore = create<WorkspaceState>((set, get) => ({
   workspaces: {},
@@ -64,6 +66,7 @@ const useWorkspaceStore = create<WorkspaceState>((set, get) => ({
     useRequestStore.getState().reset();
     useFolderStore.getState().reset();
     useCollectionStore.getState().reset();
+    useWorkspaceMemberStore.getState().reset();
 
     if (!id) {
       return { success: true };
@@ -83,6 +86,17 @@ const useWorkspaceStore = create<WorkspaceState>((set, get) => ({
         updatedAt: collection.updatedAt,
       })),
     );
+
+    const membersRes = await WorkspaceMemberService.fetchMembers(id);
+    if (membersRes.success) {
+      const mapped = membersRes.data.map((m: any) => ({
+        workspaceId: id,
+        userId: m.userId,
+        username: m.username,
+        role: m.role,
+      }));
+      useWorkspaceMemberStore.getState().upsertMembers(id, mapped);
+    }
 
     return { success: true };
   },

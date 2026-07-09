@@ -1,8 +1,10 @@
 import { useState, useMemo } from "react";
 import { Trash2, FolderPlus, Edit3 } from "lucide-react";
-import useEnvironmentStore from "../store/EnvironmentStore";
+import useEnvironmentStore from "../store/environmentStore";
 import useWorkspaceStore from "../../workspace/store/workspaceStore";
+import useVariableStore from "../store/variableStore";
 import EnvironmentService from "../service/EnvironmentService";
+import VariableService from "../service/VariableService";
 
 export default function VariableMatrixGrid({
   collectionId,
@@ -16,8 +18,9 @@ export default function VariableMatrixGrid({
   const upsertEnvironment = useEnvironmentStore(
     (state) => state.upsertEnvironment,
   );
-  const upsertVariable = useEnvironmentStore((state) => state.upsertVariable);
-  const removeVariable = useEnvironmentStore((state) => state.removeVariable);
+  const allVariables = useVariableStore((state) => state.variables);
+  const upsertVariable = useVariableStore((state) => state.upsertVariable);
+  const removeVariable = useVariableStore((state) => state.removeVariable);
 
   const activeEnv = activeEnvironmentId
     ? environments[activeEnvironmentId]
@@ -46,10 +49,13 @@ export default function VariableMatrixGrid({
     }
   }
 
-  // Convert the variables Record to a stable array for indexed grid rendering
+  // Variables for the active environment come from the flat variableStore
   const filteredVariables = useMemo(() => {
-    return Object.values(activeEnv?.variables ?? {});
-  }, [activeEnv?.variables]);
+    if (!activeEnv) return [];
+    return Object.values(allVariables).filter(
+      (variable) => variable.environmentId === activeEnv.id,
+    );
+  }, [allVariables, activeEnv]);
 
   const phantomRow = useMemo(() => ({ id: "phantom", key: "", value: "" }), []);
 
@@ -90,16 +96,12 @@ export default function VariableMatrixGrid({
     );
 
     if (res.success && res.data) {
-      // Rebuild variables as Record to preserve the normalized shape
-      const variables: typeof activeEnv.variables = {};
-      res.data.variables.forEach((v) => {
-        variables[v.id] = { id: v.id, key: v.key, value: v.value };
-      });
       upsertEnvironment({
         id: res.data.id,
         name: res.data.name,
         color: res.data.environmentColor,
-        variables,
+        collectionId: res.data.collectionId,
+        variables: activeEnv.variables,
       });
     } else if (!res.success) {
       alert(res.error || "Failed to update environment name.");
@@ -145,7 +147,7 @@ export default function VariableMatrixGrid({
     const workspaceId = useWorkspaceStore.getState().activeWorkspaceId;
     if (!workspaceId) return;
     if (isPhantomRow) {
-      const res = await EnvironmentService.addVariable(
+      const res = await VariableService.addVariable(
         workspaceId,
         collectionId,
         activeEnv.id,
@@ -155,17 +157,13 @@ export default function VariableMatrixGrid({
         },
       );
       if (res.success && res.data) {
-        upsertVariable(activeEnv.id, {
-          id: res.data.id,
-          key: res.data.key,
-          value: res.data.value,
-        });
+        upsertVariable(res.data);
       }
       response = res;
     } else {
       const targetVar = filteredVariables[index];
       if (key !== targetVar.key || value !== targetVar.value) {
-        const res = await EnvironmentService.updateVariable(
+        const res = await VariableService.updateVariable(
           workspaceId,
           collectionId,
           activeEnv.id,
@@ -173,11 +171,7 @@ export default function VariableMatrixGrid({
           { key: key.trim(), value: value.trim() },
         );
         if (res.success && res.data) {
-          upsertVariable(activeEnv.id, {
-            id: res.data.id,
-            key: res.data.key,
-            value: res.data.value,
-          });
+          upsertVariable(res.data);
         }
         response = res;
       }
@@ -197,14 +191,14 @@ export default function VariableMatrixGrid({
       const workspaceId = useWorkspaceStore.getState().activeWorkspaceId;
       if (!workspaceId || index >= filteredVariables.length) return;
       const targetVar = filteredVariables[index];
-      const res = await EnvironmentService.deleteVariable(
+      const res = await VariableService.deleteVariable(
         workspaceId,
         collectionId,
         activeEnv.id,
         targetVar.id,
       );
       if (res.success) {
-        removeVariable(activeEnv.id, targetVar.id);
+        removeVariable(targetVar.id);
       } else {
         alert(res.error || "Failed to delete variable.");
       }
@@ -326,10 +320,10 @@ export default function VariableMatrixGrid({
 
                     <td className="py-2 px-1 text-right">
                       {index < filteredVariables.length ||
-                      (editingValues &&
-                        editingValues.index === index &&
-                        (editingValues.key.trim() !== "" ||
-                          editingValues.value.trim() !== "")) ? (
+                        (editingValues &&
+                          editingValues.index === index &&
+                          (editingValues.key.trim() !== "" ||
+                            editingValues.value.trim() !== "")) ? (
                         <button
                           onClick={() => handleDeleteGridRow(index)}
                           className="p-1 hover:bg-brand-error/10 text-slate-600 hover:text-brand-error rounded transition-standard cursor-pointer"

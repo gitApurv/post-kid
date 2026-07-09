@@ -86,30 +86,13 @@ const useFolderStore = create<FolderState>((set, get) => ({
 
   reset: () => set({ folders: {}, expandedFolderIds: {} }),
 
-  // ─── Actions ─────────────────────────────────────────────────
+  // ─── Cascade Mutation ────────────────────────────────────────
 
-  deleteFolderAction: async (collectionId, folderId) => {
-    const activeWorkspaceId = useWorkspaceStore.getState().activeWorkspaceId;
-    if (!activeWorkspaceId)
-      return { success: false, error: "No active workspace selected" };
+  cascadeRemoveFolder: (folderId) => {
+    const folders = useFolderStore.getState().folders;
+    const idsToRemove = collectDescendantIds(folders, folderId);
 
-    const response = await FolderService.deleteFolder(
-      activeWorkspaceId,
-      collectionId,
-      folderId,
-    );
-    if (!response.success) return response;
-
-    const idsToRemove = collectDescendantIds(get().folders, folderId);
-
-    set((state) => ({
-      folders: Object.fromEntries(
-        Object.entries(state.folders).filter(
-          ([id]) => !idsToRemove.includes(id),
-        ),
-      ),
-    }));
-
+    useFolderStore.getState().removeFoldersByIds(idsToRemove);
     useRequestStore.getState().removeRequestsByFolderIds(idsToRemove);
 
     const activeRequest = useRequestStore.getState().activeRequest;
@@ -117,11 +100,33 @@ const useFolderStore = create<FolderState>((set, get) => ({
       activeRequest?.folderId &&
       idsToRemove.includes(activeRequest.folderId)
     ) {
-      useRequestStore.getState().setActiveRequestDirectlyAction(null);
+      useRequestStore.getState().setActiveRequestDirectly(null);
     }
+  },
+
+  // ─── Actions ─────────────────────────────────────────────────
+
+  deleteFolderAction: async (folderId) => {
+    const activeWorkspaceId = useWorkspaceStore.getState().activeWorkspaceId;
+    if (!activeWorkspaceId)
+      return { success: false, error: "No active workspace selected" };
+
+    const folder = get().folders[folderId];
+    if (!folder)
+      return { success: false, error: "Folder not found in store" };
+
+    const response = await FolderService.deleteFolder(
+      activeWorkspaceId,
+      folder.collectionId,
+      folderId,
+    );
+    if (!response.success) return response;
+
+    get().cascadeRemoveFolder(folderId);
 
     return { success: true };
   },
 }));
 
 export default useFolderStore;
+

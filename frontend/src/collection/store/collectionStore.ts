@@ -46,6 +46,22 @@ const useCollectionStore = create<CollectionState>((set, get) => ({
 
   reset: () => set({ collections: {} }),
 
+  // ─── Cascade Mutation ────────────────────────────────────────
+
+  cascadeRemoveCollection: (collectionId) => {
+    useCollectionStore.getState().removeCollection(collectionId);
+    useFolderStore.getState().removeFoldersByCollectionId(collectionId);
+    useRequestStore.getState().removeRequestsByCollectionId(collectionId);
+
+    const requestStoreState = useRequestStore.getState();
+    if (
+      requestStoreState.activeRequest?.collectionId === collectionId ||
+      requestStoreState.activeCollectionId === collectionId
+    ) {
+      requestStoreState.setActiveCollection(null);
+    }
+  },
+
   // ─── Actions ─────────────────────────────────────────────────
 
   deleteCollectionAction: async (collectionId) => {
@@ -59,21 +75,11 @@ const useCollectionStore = create<CollectionState>((set, get) => ({
     );
     if (!response.success) return response;
 
-    get().removeCollection(collectionId);
-
-    useFolderStore.getState().removeFoldersByCollectionId(collectionId);
-    useRequestStore.getState().removeRequestsByCollectionId(collectionId);
-
-    const requestStoreState = useRequestStore.getState();
-    if (
-      requestStoreState.activeRequest?.collectionId === collectionId ||
-      requestStoreState.activeCollectionId === collectionId
-    ) {
-      requestStoreState.setActiveCollectionAction(null);
-    }
+    get().cascadeRemoveCollection(collectionId);
 
     return { success: true };
   },
 }));
 
 export default useCollectionStore;
+

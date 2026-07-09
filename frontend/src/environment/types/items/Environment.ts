@@ -6,5 +6,6 @@ export default interface Environment {
   id: string;
   name: string;
   color: EnvironmentColor;
+  collectionId: string;
   variables: Record<string, Variable>;
 }

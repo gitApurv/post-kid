@@ -1,8 +1,8 @@
 import { useState } from "react";
 import { createPortal } from "react-dom";
 import { FolderPlus, Loader2, X } from "lucide-react";
-import type ModalProps from "../../common/types/ModalProps";
-import useEnvironmentStore from "../store/EnvironmentStore";
+import type ModalProps from "../../common/types/props/ModalProps";
+import useEnvironmentStore from "../store/environmentStore";
 import useWorkspaceStore from "../../workspace/store/workspaceStore";
 import EnvironmentService from "../service/EnvironmentService";
 import type { EnvironmentColor } from "../types/items/Environment";
@@ -64,12 +64,8 @@ export default function CreateEnvironmentModal({
         id: result.data.id,
         name: result.data.name,
         color: result.data.environmentColor,
-        variables: Object.fromEntries(
-          result.data.variables.map((v) => [
-            v.id,
-            { id: v.id, key: v.key, value: v.value },
-          ]),
-        ),
+        collectionId: result.data.collectionId,
+        variables: {},
       });
       setActiveEnvironmentId(result.data.id);
       setNewEnvName("");

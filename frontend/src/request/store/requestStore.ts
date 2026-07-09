@@ -190,24 +190,22 @@ const useRequestStore = create<RequestState>((set, get) => ({
 
   setLastResponse: (lastResponse) => set({ lastResponse }),
 
-  // ─── Actions ─────────────────────────────────────────────────
-
-  setActiveRequestDirectlyAction: (requestItem) => {
+  setActiveRequestDirectly: (requestItem) => {
     get().setActiveRequest(requestItem);
     set({ activeCollectionId: null });
     get().setLastResponse(null);
-    return { success: true };
   },
 
-  setActiveCollectionAction: (collectionId) => {
+  setActiveCollection: (collectionId) => {
     set({
       activeCollectionId: collectionId,
       activeRequestId: null,
       activeRequest: null,
     });
     get().setLastResponse(null);
-    return { success: true };
   },
+
+  // ─── Actions ─────────────────────────────────────────────────
 
   updateActiveRequestAction: async (fields) => {
     const activeRequest = get().activeRequest;
