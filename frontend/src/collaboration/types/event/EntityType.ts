@@ -1,0 +1,8 @@
+export type EntityType =
+  | "WORKSPACE"
+  | "WORKSPACE_MEMBER"
+  | "COLLECTION"
+  | "FOLDER"
+  | "REQUEST"
+  | "ENVIRONMENT"
+  | "ENVIRONMENT_VARIABLE";
