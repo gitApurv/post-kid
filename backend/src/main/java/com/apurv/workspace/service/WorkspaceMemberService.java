@@ -91,7 +91,8 @@ public class WorkspaceMemberService {
     public List<MemberResponse> getMembers(UUID workspaceId, User currentUser) {
         getWorkspace(workspaceId);
 
-        workspaceAuthorizationService.requireRole(workspaceId, currentUser.getId(), WorkspaceRole.ADMIN);
+        workspaceAuthorizationService.requireRole(workspaceId, currentUser.getId(), 
+                WorkspaceRole.ADMIN, WorkspaceRole.MEMBER, WorkspaceRole.VIEWER);
 
         List<WorkspaceMember> workspaceMembers = workspaceMemberRepository
                 .findAllByWorkspaceIdOrderByJoinedAt(workspaceId);

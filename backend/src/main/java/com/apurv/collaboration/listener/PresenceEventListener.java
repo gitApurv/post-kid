@@ -2,6 +2,8 @@ package com.apurv.collaboration.listener;
 
 import java.security.Principal;
 import java.util.Map;
+import java.util.Set;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
@@ -28,6 +30,8 @@ public class PresenceEventListener {
     private static final Pattern PRESENCE_DESTINATION_PATTERN = Pattern.compile("^/topic/workspace/([^/]+)/presence$");
 
     private final PresenceEventPublisher presenceEventPublisher;
+
+    private final Map<String, Map<String, Set<String>>> workspaceUserSessions = new ConcurrentHashMap<>();
 
     @EventListener
     public void onSubscribe(SessionSubscribeEvent event) {
@@ -59,11 +63,45 @@ public class PresenceEventListener {
             return;
         }
 
-        sessionAttributes.put(WORKSPACE_ID_SESSION_ATTR, workspaceId);
-
         String userId = principal.getUserId();
+        String sessionId = accessor.getSessionId();
+        String oldWorkspaceId = (String) sessionAttributes.get(WORKSPACE_ID_SESSION_ATTR);
+
+        if (oldWorkspaceId != null && !oldWorkspaceId.equals(workspaceId)) {
+            Map<String, Set<String>> oldUserSessions = workspaceUserSessions.get(oldWorkspaceId);
+            if (oldUserSessions != null) {
+                Set<String> oldSessions = oldUserSessions.get(userId);
+                if (oldSessions != null) {
+                    oldSessions.remove(sessionId);
+                    if (oldSessions.isEmpty()) {
+                        oldUserSessions.remove(userId);
+                        if (oldUserSessions.isEmpty()) {
+                            workspaceUserSessions.remove(oldWorkspaceId);
+                        }
+                        presenceEventPublisher.publish(oldWorkspaceId, userId, PresenceEventStatus.OFFLINE);
+                        log.info("User {} switched workspace from {}", userId, oldWorkspaceId);
+                    }
+                }
+            }
+        }
+
+        sessionAttributes.put(WORKSPACE_ID_SESSION_ATTR, workspaceId);
+        workspaceUserSessions.computeIfAbsent(workspaceId, k -> new ConcurrentHashMap<>())
+                .computeIfAbsent(userId, k -> ConcurrentHashMap.newKeySet())
+                .add(sessionId);
+
+        log.info("User {} subscribed to workspace {}", userId, workspaceId);
 
         presenceEventPublisher.publish(workspaceId, userId, PresenceEventStatus.ONLINE);
+
+        Map<String, Set<String>> activeUsers = workspaceUserSessions.get(workspaceId);
+        if (activeUsers != null) {
+            for (String onlineUserId : activeUsers.keySet()) {
+                if (!onlineUserId.equals(userId)) {
+                    presenceEventPublisher.publish(workspaceId, onlineUserId, PresenceEventStatus.ONLINE);
+                }
+            }
+        }
     }
 
     @EventListener
@@ -89,8 +127,22 @@ public class PresenceEventListener {
         }
 
         String userId = principal.getUserId();
+        String sessionId = accessor.getSessionId();
 
-        presenceEventPublisher.publish(workspaceId, userId, PresenceEventStatus.OFFLINE);
-        log.info("User {} disconnected from workspace {}", userId, workspaceId);
+        Map<String, Set<String>> userSessions = workspaceUserSessions.get(workspaceId);
+        if (userSessions != null) {
+            Set<String> sessions = userSessions.get(userId);
+            if (sessions != null) {
+                sessions.remove(sessionId);
+                if (sessions.isEmpty()) {
+                    userSessions.remove(userId);
+                    if (userSessions.isEmpty()) {
+                        workspaceUserSessions.remove(workspaceId);
+                    }
+                    presenceEventPublisher.publish(workspaceId, userId, PresenceEventStatus.OFFLINE);
+                    log.info("User {} disconnected from workspace {}", userId, workspaceId);
+                }
+            }
+        }
     }
 }
