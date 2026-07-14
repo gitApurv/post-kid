@@ -9,18 +9,10 @@ import useRequestStore from "../../request/store/requestStore";
 import useEnvironmentStore from "../../environment/store/environmentStore";
 import useHistoryStore from "../../history/store/historyStore";
 import useWebsocketStore from "../../collaboration/store/useWebsocketStore";
-
-// ── Utility: derive Gravatar URL from email ──
-async function getGravatarUrl(email: string): Promise<string> {
-  const normalized = email.trim().toLowerCase();
-  const msgBuffer = new TextEncoder().encode(normalized);
-  const hashBuffer = await crypto.subtle.digest("SHA-256", msgBuffer);
-  const hashArray = Array.from(new Uint8Array(hashBuffer));
-  const hashHex = hashArray
-    .map((b) => b.toString(16).padStart(2, "0"))
-    .join("");
-  return `https://www.gravatar.com/avatar/${hashHex}?d=identicon`;
-}
+import useWorkspaceMemberStore from "../../workspace/store/WorkspaceMemberStore";
+import usePresenceStore from "../../workspace/store/PresenceStore";
+import useVariableStore from "../../environment/store/variableStore";
+import getGravatarUrl from "../utils/gravatar";
 
 const useAuthStore = create<AuthState>((set, get) => ({
   isAuthenticated: !!localStorage.getItem("accessToken"),
@@ -53,10 +45,12 @@ const useAuthStore = create<AuthState>((set, get) => ({
       avatar,
     };
 
+    // Store tokens and user info in local storage
     localStorage.setItem("accessToken", res.data.accessToken);
     localStorage.setItem("refreshToken", res.data.refreshToken);
     localStorage.setItem("currentUser", JSON.stringify(user));
 
+    // Update authentication state in the store
     get().setAuthenticated(true);
     get().setCurrentUser(user);
 
@@ -75,10 +69,12 @@ const useAuthStore = create<AuthState>((set, get) => ({
       avatar,
     };
 
+    // Store tokens and user info in local storage
     localStorage.setItem("accessToken", res.data.accessToken);
     localStorage.setItem("refreshToken", res.data.refreshToken);
     localStorage.setItem("currentUser", JSON.stringify(user));
 
+    // Update authentication state in the store
     get().setAuthenticated(true);
     get().setCurrentUser(user);
 
@@ -87,11 +83,14 @@ const useAuthStore = create<AuthState>((set, get) => ({
 
   logoutAction: async () => {
     const refreshToken = localStorage.getItem("refreshToken") ?? "";
+    await AuthService.logout(refreshToken);
 
+    // Clear local storage
     localStorage.removeItem("accessToken");
     localStorage.removeItem("refreshToken");
     localStorage.removeItem("currentUser");
 
+    // Reset authentication state in the store
     get().setAuthenticated(false);
     get().setCurrentUser(null);
 
@@ -102,35 +101,14 @@ const useAuthStore = create<AuthState>((set, get) => ({
     useRequestStore.getState().reset();
     useEnvironmentStore.getState().reset();
     useHistoryStore.getState().reset();
+    useWorkspaceMemberStore.getState().reset();
+    usePresenceStore.getState().reset();
+    useVariableStore.getState().reset();
 
     // Close WebSocket connection cleanly on logout
     useWebsocketStore.getState().disconnect();
 
-    await AuthService.logout(refreshToken);
-
     return { success: true };
-  },
-
-  bootstrapAuthAction: async () => {
-    const token = localStorage.getItem("accessToken");
-    const raw = localStorage.getItem("currentUser");
-
-    if (!token || !raw) {
-      get().setAuthenticated(false);
-      get().setCurrentUser(null);
-      return { success: false, error: "No session found" };
-    }
-
-    try {
-      const user = JSON.parse(raw) as UserItem;
-      get().setAuthenticated(true);
-      get().setCurrentUser(user);
-      return { success: true };
-    } catch {
-      get().setAuthenticated(false);
-      get().setCurrentUser(null);
-      return { success: false, error: "Corrupted session data" };
-    }
   },
 }));
 

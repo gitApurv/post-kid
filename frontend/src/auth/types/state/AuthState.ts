@@ -6,11 +6,10 @@ export default interface AuthState {
   isAuthenticated: boolean;
   currentUser: UserItem | null;
 
-  // Mutations
   setAuthenticated: (isAuthenticated: boolean) => void;
+
   setCurrentUser: (currentUser: UserItem | null) => void;
 
-  // Actions
   loginAction: (
     req: LoginRequest,
   ) => Promise<{ success: boolean; error?: string }>;
@@ -20,6 +19,4 @@ export default interface AuthState {
   ) => Promise<{ success: boolean; error?: string }>;
 
   logoutAction: () => Promise<{ success: boolean; error?: string }>;
-
-  bootstrapAuthAction: () => Promise<{ success: boolean; error?: string }>;
 }

@@ -5,6 +5,7 @@ import type LoginRequest from "../types/request/LoginRequest";
 import type RegisterRequest from "../types/request/RegisterRequest";
 import type AuthResponse from "../types/response/AuthResponse";
 
+// Helper function to extract error messages from Axios errors
 function extractError(error: unknown, fallback: string): string {
   if (axios.isAxiosError<ApiResponse<unknown>>(error)) {
     return error.response?.data?.message || error.message || fallback;
@@ -13,6 +14,7 @@ function extractError(error: unknown, fallback: string): string {
   return fallback;
 }
 
+// Login function
 export async function login(req: LoginRequest) {
   try {
     const response = await api.post<ApiResponse<AuthResponse>>(
@@ -34,6 +36,7 @@ export async function login(req: LoginRequest) {
   }
 }
 
+// Register function
 export async function register(req: RegisterRequest) {
   try {
     const response = await api.post<ApiResponse<AuthResponse>>(
@@ -55,6 +58,7 @@ export async function register(req: RegisterRequest) {
   }
 }
 
+// Logout function
 export async function logout(refreshToken: string) {
   try {
     await api.post("/auth/logout", { refreshToken });
