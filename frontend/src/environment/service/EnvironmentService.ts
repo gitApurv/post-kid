@@ -3,7 +3,9 @@ import api from "../../config/axios";
 import type ApiResponse from "../../common/types/response/ApiResponse";
 import type EnvironmentResponse from "../types/response/EnvironmentResponse";
 import type EnvironmentRequest from "../types/request/EnvironmentRequest";
+import { getActiveWorkspaceId } from "../../workspace/utils/activeWorkspace";
 
+// Helper function to extract error messages from Axios errors
 function extractError(error: unknown, fallback: string): string {
   if (axios.isAxiosError<ApiResponse<unknown>>(error)) {
     return error.response?.data?.message || error.message || fallback;
@@ -12,10 +14,12 @@ function extractError(error: unknown, fallback: string): string {
   return fallback;
 }
 
-export async function fetchEnvironments(
-  workspaceId: string,
-  collectionId: string,
-) {
+// Fetch all environments for a specific collection in the active workspace
+export async function fetchEnvironments(collectionId: string) {
+  const workspaceId = getActiveWorkspaceId();
+  if (!workspaceId) {
+    return { success: false as const, error: "No active workspace selected" };
+  }
   try {
     const res = await api.get<ApiResponse<EnvironmentResponse[]>>(
       `/workspaces/${workspaceId}/collections/${collectionId}/environments`,
@@ -35,11 +39,15 @@ export async function fetchEnvironments(
   }
 }
 
+// Add a new environment to a specific collection in the active workspace
 export async function addEnvironment(
-  workspaceId: string,
   collectionId: string,
   request: EnvironmentRequest,
 ) {
+  const workspaceId = getActiveWorkspaceId();
+  if (!workspaceId) {
+    return { success: false as const, error: "No active workspace selected" };
+  }
   try {
     const res = await api.post<ApiResponse<EnvironmentResponse>>(
       `/workspaces/${workspaceId}/collections/${collectionId}/environments`,
@@ -60,12 +68,16 @@ export async function addEnvironment(
   }
 }
 
+// Edit an existing environment in a specific collection in the active workspace
 export async function editEnvironment(
-  workspaceId: string,
   collectionId: string,
   environmentId: string,
   request: EnvironmentRequest,
 ) {
+  const workspaceId = getActiveWorkspaceId();
+  if (!workspaceId) {
+    return { success: false as const, error: "No active workspace selected" };
+  }
   try {
     const res = await api.put<ApiResponse<EnvironmentResponse>>(
       `/workspaces/${workspaceId}/collections/${collectionId}/environments/${environmentId}`,
@@ -86,11 +98,15 @@ export async function editEnvironment(
   }
 }
 
+// Delete an environment from a specific collection in the active workspace
 export async function deleteEnvironment(
-  workspaceId: string,
   collectionId: string,
   environmentId: string,
 ) {
+  const workspaceId = getActiveWorkspaceId();
+  if (!workspaceId) {
+    return { success: false as const, error: "No active workspace selected" };
+  }
   try {
     const res = await api.delete<ApiResponse<void>>(
       `/workspaces/${workspaceId}/collections/${collectionId}/environments/${environmentId}`,

@@ -11,7 +11,7 @@ import useHistoryStore from "../../history/store/historyStore";
 import useWebsocketStore from "../../collaboration/store/useWebsocketStore";
 import useWorkspaceMemberStore from "../../workspace/store/workspaceMemberStore";
 import usePresenceStore from "../../workspace/store/presenceStore";
-import useVariableStore from "../../environment/store/variableStore";
+import useEnvironmentVariableStore from "../../environment/store/environmentVariableStore";
 import getGravatarUrl from "../utils/gravatar";
 
 const useAuthStore = create<AuthState>((set, get) => ({
@@ -103,7 +103,7 @@ const useAuthStore = create<AuthState>((set, get) => ({
     useHistoryStore.getState().reset();
     useWorkspaceMemberStore.getState().reset();
     usePresenceStore.getState().reset();
-    useVariableStore.getState().reset();
+    useEnvironmentVariableStore.getState().reset();
 
     // Close WebSocket connection cleanly on logout
     useWebsocketStore.getState().disconnect();

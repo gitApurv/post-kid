@@ -13,7 +13,7 @@ import useWorkspaceMemberStore, {
   mapResponseToMember,
 } from "./workspaceMemberStore";
 import WorkspaceMemberService from "../service/WorkspaceMemberService";
-import useVariableStore from "../../environment/store/variableStore";
+import useEnvironmentVariableStore from "../../environment/store/environmentVariableStore";
 import { setActiveWorkspaceId as setActiveWorkspaceIdUtil } from "../utils/activeWorkspace";
 
 const useWorkspaceStore = create<WorkspaceState>((set, get) => ({
@@ -91,7 +91,7 @@ const useWorkspaceStore = create<WorkspaceState>((set, get) => ({
     useFolderStore.getState().reset();
     useCollectionStore.getState().reset();
     useWorkspaceMemberStore.getState().reset();
-    useVariableStore.getState().reset();
+    useEnvironmentVariableStore.getState().reset();
 
     if (!workspaceId) {
       return { success: true };

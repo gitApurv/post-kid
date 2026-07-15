@@ -1,11 +1,11 @@
-import type Variable from "../../environment/types/items/Variable";
+import type EnvironmentVariable from "../../environment/types/items/EnvironmentVariable";
 import type RequestItem from "../types/items/RequestItem";
 import type RequestItemRequest from "../types/request/RequestItemRequest";
 
 // Resolve {{variable}} placeholders against active environment
 export function resolveVariables(
   text: string,
-  variables: Record<string, Variable>,
+  variables: Record<string, EnvironmentVariable>,
 ): string {
   return text.replace(/\{\{(\w+)\}\}/g, (_, key) => {
     const match = Object.values(variables).find((v) => v.key === key);

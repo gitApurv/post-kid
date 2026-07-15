@@ -1,7 +1,7 @@
 import { create } from "zustand";
-import type VariableState from "../types/state/VariableState";
+import type EnvironmentVariableState from "../types/state/EnvironmentVariableState";
 
-const useVariableStore = create<VariableState>((set) => ({
+const useEnvironmentVariableStore = create<EnvironmentVariableState>((set) => ({
   variables: {},
 
   // ─── Mutations ───────────────────────────────────────────────
@@ -11,12 +11,12 @@ const useVariableStore = create<VariableState>((set) => ({
       variables: { ...state.variables, [variable.id]: variable },
     })),
 
-  upsertVariables: (variablesList) =>
+  upsertVariables: (variables) =>
     set((state) => ({
       variables: {
         ...state.variables,
         ...Object.fromEntries(
-          variablesList.map((variable) => [variable.id, variable]),
+          variables.map((variable) => [variable.id, variable]),
         ),
       },
     })),
@@ -40,4 +40,4 @@ const useVariableStore = create<VariableState>((set) => ({
   reset: () => set({ variables: {} }),
 }));
 
-export default useVariableStore;
+export default useEnvironmentVariableStore;

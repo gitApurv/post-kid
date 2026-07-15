@@ -4,10 +4,11 @@ import type Environment from "../types/items/Environment";
 import type EnvironmentState from "../types/state/EnvironmentState";
 import EnvironmentService from "../service/EnvironmentService";
 import type EnvironmentResponse from "../types/response/EnvironmentResponse";
-import useVariableStore from "./variableStore";
+import useEnvironmentVariableStore from "./environmentVariableStore";
 
-// ── Utility: map EnvironmentResponse DTO → Environment ──
-function mapResponseToEnvironment(res: EnvironmentResponse): Environment {
+export function mapResponseToEnvironment(
+  res: EnvironmentResponse,
+): Environment {
   return {
     id: res.id,
     name: res.name,
@@ -43,7 +44,8 @@ const useEnvironmentStore = create<EnvironmentState>((set, get) => ({
       };
     }),
 
-  setActiveEnvironmentId: (id) => set({ activeEnvironmentId: id }),
+  setActiveEnvironmentId: (environmentId) =>
+    set({ activeEnvironmentId: environmentId }),
 
   reset: () =>
     set({
@@ -51,43 +53,15 @@ const useEnvironmentStore = create<EnvironmentState>((set, get) => ({
       activeEnvironmentId: "",
     }),
 
-  // ─── Cascade Mutation ────────────────────────────────────────
-
   cascadeRemoveEnvironment: (environmentId) => {
     useEnvironmentStore.getState().removeEnvironment(environmentId);
-    useVariableStore.getState().removeVariablesByEnvironmentId(environmentId);
+    // Cascade remove associated variables from the environment variable store
+    useEnvironmentVariableStore
+      .getState()
+      .removeVariablesByEnvironmentId(environmentId);
   },
 
   // ─── Actions ─────────────────────────────────────────────────
-
-  fetchEnvironmentsAction: async (collectionId) => {
-    const workspaceId = useWorkspaceStore.getState().activeWorkspaceId;
-    if (!workspaceId)
-      return { success: false, error: "No active workspace selected" };
-
-    const res = await EnvironmentService.fetchEnvironments(
-      workspaceId,
-      collectionId,
-    );
-    if (!res.success) return res;
-
-    const record: Record<string, Environment> = Object.fromEntries(
-      res.data.map((environment) => [
-        environment.id,
-        mapResponseToEnvironment(environment),
-      ]),
-    );
-
-    get().setEnvironments(record);
-
-    const { activeEnvironmentId } = get();
-    const ids = Object.keys(record);
-    if (!activeEnvironmentId || !record[activeEnvironmentId]) {
-      get().setActiveEnvironmentId(ids[0] ?? "");
-    }
-
-    return { success: true };
-  },
 
   deleteEnvironmentAction: async (environmentId) => {
     const activeWorkspaceId = useWorkspaceStore.getState().activeWorkspaceId;
@@ -99,12 +73,12 @@ const useEnvironmentStore = create<EnvironmentState>((set, get) => ({
     const collectionId = environment.collectionId;
 
     const response = await EnvironmentService.deleteEnvironment(
-      activeWorkspaceId,
       collectionId,
       environmentId,
     );
     if (!response.success) return response;
 
+    // Cascade remove the environment and its associated variables from the store
     get().cascadeRemoveEnvironment(environmentId);
 
     return { success: true };

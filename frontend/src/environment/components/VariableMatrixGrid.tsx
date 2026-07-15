@@ -1,10 +1,10 @@
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 import { Trash2, FolderPlus, Edit3 } from "lucide-react";
 import useEnvironmentStore from "../store/environmentStore";
-import useWorkspaceStore from "../../workspace/store/workspaceStore";
-import useVariableStore from "../store/variableStore";
+import useEnvironmentVariableStore from "../store/environmentVariableStore";
 import EnvironmentService from "../service/EnvironmentService";
-import VariableService from "../service/VariableService";
+import EnvironmentVariableService from "../service/EnvironmentVariableService";
+import { getActiveWorkspaceId } from "../../workspace/utils/activeWorkspace";
 
 export default function VariableMatrixGrid({
   collectionId,
@@ -18,13 +18,28 @@ export default function VariableMatrixGrid({
   const upsertEnvironment = useEnvironmentStore(
     (state) => state.upsertEnvironment,
   );
-  const allVariables = useVariableStore((state) => state.variables);
-  const upsertVariable = useVariableStore((state) => state.upsertVariable);
-  const removeVariable = useVariableStore((state) => state.removeVariable);
+  const allVariables = useEnvironmentVariableStore((state) => state.variables);
+  const upsertVariable = useEnvironmentVariableStore((state) => state.upsertVariable);
+  const upsertVariables = useEnvironmentVariableStore((state) => state.upsertVariables);
+  const removeVariable = useEnvironmentVariableStore((state) => state.removeVariable);
 
   const activeEnv = activeEnvironmentId
     ? environments[activeEnvironmentId]
     : Object.values(environments)[0];
+
+  useEffect(() => {
+    if (collectionId && activeEnv?.id) {
+      EnvironmentVariableService.fetchVariables(collectionId, activeEnv.id).then(
+        (res) => {
+          if (res.success && res.data) {
+            upsertVariables(res.data);
+          } else if (!res.success) {
+            console.error("Failed to load variables:", res.error);
+          }
+        },
+      );
+    }
+  }, [collectionId, activeEnv?.id, upsertVariables]);
 
   const [editingValues, setEditingValues] = useState<{
     index: number;
@@ -82,11 +97,10 @@ export default function VariableMatrixGrid({
       return;
     }
 
-    const workspaceId = useWorkspaceStore.getState().activeWorkspaceId;
+    const workspaceId = getActiveWorkspaceId();
     if (!workspaceId) return;
 
     const res = await EnvironmentService.editEnvironment(
-      workspaceId,
       collectionId,
       activeEnv.id,
       {
@@ -144,11 +158,10 @@ export default function VariableMatrixGrid({
     }
 
     let response: { success: boolean; error?: string } | undefined;
-    const workspaceId = useWorkspaceStore.getState().activeWorkspaceId;
+    const workspaceId = getActiveWorkspaceId();
     if (!workspaceId) return;
     if (isPhantomRow) {
-      const res = await VariableService.addVariable(
-        workspaceId,
+      const res = await EnvironmentVariableService.addVariable(
         collectionId,
         activeEnv.id,
         {
@@ -163,8 +176,7 @@ export default function VariableMatrixGrid({
     } else {
       const targetVar = filteredVariables[index];
       if (key !== targetVar.key || value !== targetVar.value) {
-        const res = await VariableService.updateVariable(
-          workspaceId,
+        const res = await EnvironmentVariableService.updateVariable(
           collectionId,
           activeEnv.id,
           targetVar.id,
@@ -188,11 +200,10 @@ export default function VariableMatrixGrid({
     if (isPhantomRow) {
       setEditingValues(null);
     } else {
-      const workspaceId = useWorkspaceStore.getState().activeWorkspaceId;
+      const workspaceId = getActiveWorkspaceId();
       if (!workspaceId || index >= filteredVariables.length) return;
       const targetVar = filteredVariables[index];
-      const res = await VariableService.deleteVariable(
-        workspaceId,
+      const res = await EnvironmentVariableService.deleteVariable(
         collectionId,
         activeEnv.id,
         targetVar.id,

@@ -51,7 +51,6 @@ export default function CreateEnvironmentModal({
     }
 
     const result = await EnvironmentService.addEnvironment(
-      workspaceId,
       collectionId,
       {
         name: newEnvName.trim(),

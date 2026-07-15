@@ -21,7 +21,7 @@ import RequestService from "../service/RequestService";
 import type RequestItem from "../types/items/RequestItem";
 import useWorkspaceStore from "../../workspace/store/workspaceStore";
 import useEnvironmentStore from "../../environment/store/environmentStore";
-import useVariableStore from "../../environment/store/variableStore";
+import useEnvironmentVariableStore from "../../environment/store/environmentVariableStore";
 
 const PHANTOM_ROW = { key: "", value: "", active: true };
 
@@ -237,7 +237,7 @@ export default function RequestBuilder() {
 
   const currentStyles = getMethodStyle(activeRequest?.method || "GET");
 
-  const allVariables = useVariableStore((state) => state.variables);
+  const allVariables = useEnvironmentVariableStore((state) => state.variables);
   const setExecuting = useRequestStore((state) => state.setExecuting);
   const setLastResponse = useRequestStore((state) => state.setLastResponse);
 

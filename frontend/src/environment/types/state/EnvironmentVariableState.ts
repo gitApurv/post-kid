@@ -1,12 +1,11 @@
 import type VariableResponse from "../response/VariableResponse";
 
-export default interface VariableState {
+export default interface EnvironmentVariableState {
   variables: Record<string, VariableResponse>;
 
-  // Mutations
   upsertVariable: (variable: VariableResponse) => void;
 
-  upsertVariables: (variablesList: VariableResponse[]) => void;
+  upsertVariables: (variables: VariableResponse[]) => void;
 
   removeVariable: (variableId: string) => void;
 

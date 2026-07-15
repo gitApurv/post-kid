@@ -1,4 +1,4 @@
-import type Variable from "./Variable";
+import type EnvironmentVariable from "./EnvironmentVariable";
 
 export type EnvironmentColor = "EMERALD" | "AMBER" | "GREY" | "BLUE" | "ROSE";
 
@@ -7,5 +7,5 @@ export default interface Environment {
   name: string;
   color: EnvironmentColor;
   collectionId: string;
-  variables: Record<string, Variable>;
+  variables: Record<string, EnvironmentVariable>;
 }

@@ -1,12 +1,15 @@
 import { useEffect } from "react";
 import { Plus, Trash2 } from "lucide-react";
-import useEnvironmentStore from "../store/environmentStore";
+import useWorkspaceStore from "../../workspace/store/workspaceStore";
+import useEnvironmentStore, { mapResponseToEnvironment } from "../store/environmentStore";
+import EnvironmentService from "../service/EnvironmentService";
 import type EnvironmentScopeListProps from "../types/props/EnvironmentScopeListProps";
 
 export default function EnvironmentScopeList({
   collectionId,
   onAddClick,
 }: EnvironmentScopeListProps) {
+  const activeWorkspaceId = useWorkspaceStore((state) => state.activeWorkspaceId);
   const environments = useEnvironmentStore((state) => state.environments);
   const activeEnvironmentId = useEnvironmentStore(
     (state) => state.activeEnvironmentId,
@@ -14,22 +17,32 @@ export default function EnvironmentScopeList({
   const setActiveEnvironment = useEnvironmentStore(
     (state) => state.setActiveEnvironmentId,
   );
-  const fetchEnvironments = useEnvironmentStore(
-    (state) => state.fetchEnvironmentsAction,
-  );
+  const setEnvironments = useEnvironmentStore((state) => state.setEnvironments);
   const deleteEnvironmentAction = useEnvironmentStore(
     (state) => state.deleteEnvironmentAction,
   );
 
   useEffect(() => {
     const loadEnvironments = async () => {
-      const response = await fetchEnvironments(collectionId);
-      if (response && !response.success) {
-        alert(response.error || "Failed to fetch environments.");
+      if (!activeWorkspaceId) return;
+      const res = await EnvironmentService.fetchEnvironments(collectionId);
+      if (res.success && res.data) {
+        const record = Object.fromEntries(
+          res.data.map((environment) => [
+            environment.id,
+            mapResponseToEnvironment(environment),
+          ]),
+        );
+        setEnvironments(record);
+        if (!activeEnvironmentId || !record[activeEnvironmentId]) {
+          setActiveEnvironment(Object.keys(record)[0] ?? "");
+        }
+      } else if (!res.success) {
+        alert(res.error || "Failed to fetch environments.");
       }
     };
     loadEnvironments();
-  }, [fetchEnvironments, collectionId]);
+  }, [activeWorkspaceId, collectionId]);
 
   const handleDeleteEnv = async (id: string, name: string) => {
     if (
@@ -69,21 +82,21 @@ export default function EnvironmentScopeList({
                 key={environment.id}
                 onClick={() => setActiveEnvironment(environment.id)}
                 className={`group w-full flex items-center justify-between px-3 py-3 rounded-lg border transition-all cursor-pointer ${isActive
-                    ? "bg-[#0B0F19] border-brand-success shadow-[0_0_12px_rgba(16,185,129,0.06)]"
-                    : "bg-white/[0.01] border-white/5 hover:border-white/10 hover:bg-white/[0.02]"
+                  ? "bg-[#0B0F19] border-brand-success shadow-[0_0_12px_rgba(16,185,129,0.06)]"
+                  : "bg-white/[0.01] border-white/5 hover:border-white/10 hover:bg-white/[0.02]"
                   }`}
               >
                 <div className="flex items-center gap-2.5 overflow-hidden">
                   <span
                     className={`w-2 h-2 rounded-full shrink-0 ${environment.color === "EMERALD"
-                        ? "bg-brand-success shadow-[0_0_6px_#10B981]"
-                        : environment.color === "AMBER"
-                          ? "bg-brand-warning shadow-[0_0_6px_#F59E0B]"
-                          : environment.color === "BLUE"
-                            ? "bg-blue-500 shadow-[0_0_6px_#3B82F6]"
-                            : environment.color === "ROSE"
-                              ? "bg-rose-500 shadow-[0_0_6px_#F43F5E]"
-                              : "bg-slate-400 shadow-[0_0_6px_#94A3B8]"
+                      ? "bg-brand-success shadow-[0_0_6px_#10B981]"
+                      : environment.color === "AMBER"
+                        ? "bg-brand-warning shadow-[0_0_6px_#F59E0B]"
+                        : environment.color === "BLUE"
+                          ? "bg-blue-500 shadow-[0_0_6px_#3B82F6]"
+                          : environment.color === "ROSE"
+                            ? "bg-rose-500 shadow-[0_0_6px_#F43F5E]"
+                            : "bg-slate-400 shadow-[0_0_6px_#94A3B8]"
                       } ${isActive ? "animate-pulse" : ""}`}
                   />
                   <span

@@ -3,7 +3,9 @@ import api from "../../config/axios";
 import type ApiResponse from "../../common/types/response/ApiResponse";
 import type VariableResponse from "../types/response/VariableResponse";
 import type VariableRequest from "../types/request/VariableRequest";
+import { getActiveWorkspaceId } from "../../workspace/utils/activeWorkspace";
 
+// Helper function to extract error messages from Axios errors
 function extractError(error: unknown, fallback: string): string {
   if (axios.isAxiosError<ApiResponse<unknown>>(error)) {
     return error.response?.data?.message || error.message || fallback;
@@ -12,11 +14,15 @@ function extractError(error: unknown, fallback: string): string {
   return fallback;
 }
 
+// Fetch all variables for a specific environment in a collection within the active workspace
 export async function fetchVariables(
-  workspaceId: string,
   collectionId: string,
   environmentId: string,
 ) {
+  const workspaceId = getActiveWorkspaceId();
+  if (!workspaceId) {
+    return { success: false as const, error: "No active workspace selected" };
+  }
   try {
     const res = await api.get<ApiResponse<VariableResponse[]>>(
       `/workspaces/${workspaceId}/collections/${collectionId}/environments/${environmentId}/variables`,
@@ -36,12 +42,16 @@ export async function fetchVariables(
   }
 }
 
+// Add a new variable to a specific environment in a collection within the active workspace
 export async function addVariable(
-  workspaceId: string,
   collectionId: string,
   environmentId: string,
   request: VariableRequest,
 ) {
+  const workspaceId = getActiveWorkspaceId();
+  if (!workspaceId) {
+    return { success: false as const, error: "No active workspace selected" };
+  }
   try {
     const res = await api.post<ApiResponse<VariableResponse>>(
       `/workspaces/${workspaceId}/collections/${collectionId}/environments/${environmentId}/variables`,
@@ -62,13 +72,17 @@ export async function addVariable(
   }
 }
 
+// Update an existing variable in a specific environment in a collection within the active workspace
 export async function updateVariable(
-  workspaceId: string,
   collectionId: string,
   environmentId: string,
   variableId: string,
   request: VariableRequest,
 ) {
+  const workspaceId = getActiveWorkspaceId();
+  if (!workspaceId) {
+    return { success: false as const, error: "No active workspace selected" };
+  }
   try {
     const res = await api.put<ApiResponse<VariableResponse>>(
       `/workspaces/${workspaceId}/collections/${collectionId}/environments/${environmentId}/variables/${variableId}`,
@@ -89,12 +103,16 @@ export async function updateVariable(
   }
 }
 
+// Delete a variable from a specific environment in a collection within the active workspace
 export async function deleteVariable(
-  workspaceId: string,
   collectionId: string,
   environmentId: string,
   variableId: string,
 ) {
+  const workspaceId = getActiveWorkspaceId();
+  if (!workspaceId) {
+    return { success: false as const, error: "No active workspace selected" };
+  }
   try {
     const res = await api.delete<ApiResponse<void>>(
       `/workspaces/${workspaceId}/collections/${collectionId}/environments/${environmentId}/variables/${variableId}`,
@@ -114,11 +132,11 @@ export async function deleteVariable(
   }
 }
 
-const VariableService = {
+const EnvironmentVariableService = {
   fetchVariables,
   addVariable,
   updateVariable,
   deleteVariable,
 };
 
-export default VariableService;
+export default EnvironmentVariableService;

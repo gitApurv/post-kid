@@ -16,7 +16,7 @@ function extractError(error: unknown, fallback: string): string {
   return fallback;
 }
 
-// Function to create a request within a collection
+// Create a request within a collection
 export async function createCollectionRequest(
   collectionId: string,
   req: { name: string; method: string; url: string },
@@ -45,7 +45,7 @@ export async function createCollectionRequest(
   }
 }
 
-// Function to create a request within a folder
+// Create a request within a folder
 export async function createFolderRequest(
   collectionId: string,
   folderId: string,
@@ -75,7 +75,7 @@ export async function createFolderRequest(
   }
 }
 
-// Function to delete a request from a collection
+// Delete a request from a collection
 export async function deleteCollectionRequest(
   collectionId: string,
   requestId: string,
@@ -103,7 +103,7 @@ export async function deleteCollectionRequest(
   }
 }
 
-// Function to delete a request from a folder
+// Delete a request from a folder
 export async function deleteFolderRequest(
   collectionId: string,
   folderId: string,
@@ -132,7 +132,7 @@ export async function deleteFolderRequest(
   }
 }
 
-// Function to update a request, either in a collection or a folder
+// Update a request, either in a collection or a folder
 export async function updateRequest(
   collectionId: string,
   folderId: string | null,
@@ -166,7 +166,7 @@ export async function updateRequest(
   }
 }
 
-// Function to execute a request, either in a collection or a folder
+// Execute a request, either in a collection or a folder
 export async function executeRequest(
   collectionId: string,
   folderId: string | null,
