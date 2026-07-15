@@ -5,7 +5,9 @@ import type CollectionRequest from "../types/request/CollectionRequest";
 import type CollectionResponse from "../types/response/CollectionResponse";
 import type FolderResponse from "../types/response/FolderResponse";
 import type RequestItemResponse from "../../request/types/response/RequestItemResponse";
+import { getActiveWorkspaceId } from "../../workspace/utils/activeWorkspace";
 
+// Helper function to extract error messages from Axios errors
 function extractError(error: unknown, fallback: string): string {
   if (axios.isAxiosError<ApiResponse<unknown>>(error)) {
     return error.response?.data?.message || error.message || fallback;
@@ -14,7 +16,12 @@ function extractError(error: unknown, fallback: string): string {
   return fallback;
 }
 
-export async function fetchCollections(workspaceId: string) {
+// Fetch all collections for the active workspace
+export async function fetchCollections() {
+  const workspaceId = getActiveWorkspaceId();
+  if (!workspaceId) {
+    return { success: false as const, error: "No active workspace selected" };
+  }
   try {
     const res = await api.get<ApiResponse<CollectionResponse[]>>(
       `/workspaces/${workspaceId}/collections`,
@@ -34,10 +41,12 @@ export async function fetchCollections(workspaceId: string) {
   }
 }
 
-export async function fetchCollectionFolders(
-  workspaceId: string,
-  collectionId: string,
-) {
+// Fetch all folders for a specific collection in the active workspace
+export async function fetchCollectionFolders(collectionId: string) {
+  const workspaceId = getActiveWorkspaceId();
+  if (!workspaceId) {
+    return { success: false as const, error: "No active workspace selected" };
+  }
   try {
     const res = await api.get<ApiResponse<FolderResponse[]>>(
       `/workspaces/${workspaceId}/collections/${collectionId}/folders`,
@@ -56,10 +65,12 @@ export async function fetchCollectionFolders(
   }
 }
 
-export async function fetchCollectionRootRequests(
-  workspaceId: string,
-  collectionId: string,
-) {
+// Fetch all root-level requests for a specific collection in the active workspace
+export async function fetchCollectionRootRequests(collectionId: string) {
+  const workspaceId = getActiveWorkspaceId();
+  if (!workspaceId) {
+    return { success: false as const, error: "No active workspace selected" };
+  }
   try {
     const res = await api.get<ApiResponse<RequestItemResponse[]>>(
       `/workspaces/${workspaceId}/collections/${collectionId}/requests`,
@@ -78,10 +89,12 @@ export async function fetchCollectionRootRequests(
   }
 }
 
-export async function createCollection(
-  workspaceId: string,
-  req: CollectionRequest,
-) {
+// Create a new collection in the active workspace
+export async function createCollection(req: CollectionRequest) {
+  const workspaceId = getActiveWorkspaceId();
+  if (!workspaceId) {
+    return { success: false as const, error: "No active workspace selected" };
+  }
   try {
     const res = await api.post<ApiResponse<CollectionResponse>>(
       `/workspaces/${workspaceId}/collections`,
@@ -101,11 +114,12 @@ export async function createCollection(
   }
 }
 
-export async function updateCollection(
-  workspaceId: string,
-  id: string,
-  req: CollectionRequest,
-) {
+// Update an existing collection in the active workspace
+export async function updateCollection(id: string, req: CollectionRequest) {
+  const workspaceId = getActiveWorkspaceId();
+  if (!workspaceId) {
+    return { success: false as const, error: "No active workspace selected" };
+  }
   try {
     const res = await api.put<ApiResponse<CollectionResponse>>(
       `/workspaces/${workspaceId}/collections/${id}`,
@@ -125,7 +139,12 @@ export async function updateCollection(
   }
 }
 
-export async function deleteCollection(workspaceId: string, id: string) {
+// Delete a collection from the active workspace
+export async function deleteCollection(id: string) {
+  const workspaceId = getActiveWorkspaceId();
+  if (!workspaceId) {
+    return { success: false as const, error: "No active workspace selected" };
+  }
   try {
     const res = await api.delete<ApiResponse<unknown>>(
       `/workspaces/${workspaceId}/collections/${id}`,

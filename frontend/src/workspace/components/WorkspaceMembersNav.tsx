@@ -1,5 +1,5 @@
-import useWorkspaceMemberStore from "../store/WorkspaceMemberStore";
-import usePresenceStore from "../store/PresenceStore";
+import useWorkspaceMemberStore from "../store/workspaceMemberStore";
+import usePresenceStore from "../store/presenceStore";
 
 export default function WorkspaceMembersNav() {
   const members = useWorkspaceMemberStore((state) => state.members);

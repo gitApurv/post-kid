@@ -34,15 +34,30 @@ const useFolderStore = create<FolderState>((set, get) => ({
   // ─── Mutations ───────────────────────────────────────────────
 
   upsertFolder: (folder) =>
-    set((state) => ({ folders: { ...state.folders, [folder.id]: folder } })),
+    set((state) => {
+      const existing = state.folders[folder.id];
+      return {
+        folders: {
+          ...state.folders,
+          [folder.id]: {
+            ...existing,
+            ...folder,
+          },
+        },
+      };
+    }),
 
   upsertFolders: (foldersList) =>
-    set((state) => ({
-      folders: {
-        ...state.folders,
-        ...Object.fromEntries(foldersList.map((folder) => [folder.id, folder])),
-      },
-    })),
+    set((state) => {
+      const newFolders = { ...state.folders };
+      for (const folder of foldersList) {
+        newFolders[folder.id] = {
+          ...newFolders[folder.id],
+          ...folder,
+        };
+      }
+      return { folders: newFolders };
+    }),
 
   removeFolder: (folderId) =>
     set((state) => {
@@ -86,15 +101,15 @@ const useFolderStore = create<FolderState>((set, get) => ({
 
   reset: () => set({ folders: {}, expandedFolderIds: {} }),
 
-  // ─── Cascade Mutation ────────────────────────────────────────
-
   cascadeRemoveFolder: (folderId) => {
     const folders = useFolderStore.getState().folders;
     const idsToRemove = collectDescendantIds(folders, folderId);
 
+    // Remove the folder and its descendants from the store
     useFolderStore.getState().removeFoldersByIds(idsToRemove);
     useRequestStore.getState().removeRequestsByFolderIds(idsToRemove);
 
+    // If the active request belongs to any of the removed folders, clear it
     const activeRequest = useRequestStore.getState().activeRequest;
     if (
       activeRequest?.folderId &&
@@ -112,16 +127,15 @@ const useFolderStore = create<FolderState>((set, get) => ({
       return { success: false, error: "No active workspace selected" };
 
     const folder = get().folders[folderId];
-    if (!folder)
-      return { success: false, error: "Folder not found in store" };
+    if (!folder) return { success: false, error: "Folder not found in store" };
 
     const response = await FolderService.deleteFolder(
-      activeWorkspaceId,
       folder.collectionId,
       folderId,
     );
     if (!response.success) return response;
 
+    // Cascade remove the folder and its descendant folders and requests from the store
     get().cascadeRemoveFolder(folderId);
 
     return { success: true };
@@ -129,4 +143,3 @@ const useFolderStore = create<FolderState>((set, get) => ({
 }));
 
 export default useFolderStore;
-

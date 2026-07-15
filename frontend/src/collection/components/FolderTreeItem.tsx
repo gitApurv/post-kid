@@ -10,10 +10,9 @@ import {
 } from "lucide-react";
 import type FolderTreeItemProps from "../types/props/FolderTreeItemProps";
 import RequestTreeItem from "./RequestTreeItem";
-import useWorkspaceStore from "../../workspace/store/workspaceStore";
-import useFolderStore from "../store/FolderStore";
+import useFolderStore from "../store/folderStore";
 import useRequestStore from "../../request/store/requestStore";
-import { useChildFolders, useFolderRequests } from "../store/selectors";
+import { useChildFolders, useFolderRequests } from "../hooks/selectors";
 import RequestService from "../../request/service/RequestService";
 import FolderService from "../service/FolderService";
 
@@ -24,9 +23,6 @@ export default function FolderTreeItem({
   onAddFolder,
   onAddRequest,
 }: FolderTreeItemProps) {
-  const activeWorkspaceId = useWorkspaceStore(
-    (state) => state.activeWorkspaceId,
-  );
 
   const deleteFolderAction = useFolderStore(
     (state) => state.deleteFolderAction,
@@ -46,14 +42,11 @@ export default function FolderTreeItem({
     const nextState = !isExpanded;
     toggleFolderExpansion(folder.id, nextState);
     if (nextState && !folder.isLoaded && !folder.isLoading) {
-      const workspaceId = useWorkspaceStore.getState().activeWorkspaceId;
-      if (!workspaceId) return;
-
       useFolderStore.getState().setFolderLoading(folder.id, true);
 
       const [subfoldersRes, requestsRes] = await Promise.all([
-        FolderService.fetchSubfolders(workspaceId, collectionId, folder.id),
-        FolderService.fetchFolderRequests(workspaceId, collectionId, folder.id),
+        FolderService.fetchSubfolders(collectionId, folder.id),
+        FolderService.fetchFolderRequests(collectionId, folder.id),
       ]);
 
       if (!subfoldersRes.success) {
@@ -109,7 +102,6 @@ export default function FolderTreeItem({
       )
     ) {
       const response = await RequestService.deleteFolderRequest(
-        activeWorkspaceId!,
         collectionId,
         folder.id,
         reqId,

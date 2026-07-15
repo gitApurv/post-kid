@@ -7,7 +7,7 @@ import useCollectionStore, {
 } from "../../collection/store/collectionStore";
 import useWorkspaceMemberStore, {
   mapResponseToMember,
-} from "../store/WorkspaceMemberStore";
+} from "../store/workspaceMemberStore";
 
 /**
  * Custom hook to reactively synchronize collections and workspace members

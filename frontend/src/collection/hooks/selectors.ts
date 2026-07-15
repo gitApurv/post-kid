@@ -1,10 +1,14 @@
 import { useMemo } from "react";
-import useFolderStore from "./FolderStore";
+import useFolderStore from "../store/folderStore";
 import type Folder from "../types/items/FolderItem";
 import useRequestStore from "../../request/store/requestStore";
 import type RequestItem from "../../request/types/items/RequestItem";
 
-// Root folders for a collection
+/**
+ * Hook to retrieve all root-level folders belonging directly to a collection.
+ * Root folders are those that have no parentFolderId.
+ * Uses useMemo to prevent unnecessary filtering computations on re-renders.
+ */
 export function useRootFolders(collectionId: string): Folder[] {
   const folders = useFolderStore((state) => state.folders);
   return useMemo(() => {
@@ -15,7 +19,10 @@ export function useRootFolders(collectionId: string): Folder[] {
   }, [folders, collectionId]);
 }
 
-// Direct children of a folder
+/**
+ * Hook to retrieve all child folders nested directly under a specific folder.
+ * Uses useMemo to optimize filtering across folder state changes.
+ */
 export function useChildFolders(folderId: string): Folder[] {
   const folders = useFolderStore((state) => state.folders);
   return useMemo(() => {
@@ -25,7 +32,11 @@ export function useChildFolders(folderId: string): Folder[] {
   }, [folders, folderId]);
 }
 
-// Root requests for a collection
+/**
+ * Hook to retrieve all root-level requests belonging directly to a collection.
+ * Root requests are those that do not reside inside any folder (folderId is null/undefined).
+ * Uses useMemo to optimize performance.
+ */
 export function useRootRequests(collectionId: string): RequestItem[] {
   const requests = useRequestStore((state) => state.requests);
   return useMemo(() => {
@@ -36,7 +47,10 @@ export function useRootRequests(collectionId: string): RequestItem[] {
   }, [requests, collectionId]);
 }
 
-// Requests belonging to a folder
+/**
+ * Hook to retrieve all requests contained directly inside a specific folder.
+ * Uses useMemo to prevent recalculating list mappings on unrelated state changes.
+ */
 export function useFolderRequests(folderId: string): RequestItem[] {
   const requests = useRequestStore((state) => state.requests);
   return useMemo(() => {
@@ -44,15 +58,4 @@ export function useFolderRequests(folderId: string): RequestItem[] {
       (requestItem) => requestItem.folderId === folderId,
     );
   }, [requests, folderId]);
-}
-
-// Derived count of root folders
-export function useRootFolderCount(collectionId: string): number {
-  const folders = useFolderStore((state) => state.folders);
-  return useMemo(() => {
-    return Object.values(folders).filter(
-      (folder) =>
-        folder.collectionId === collectionId && !folder.parentFolderId,
-    ).length;
-  }, [folders, collectionId]);
 }

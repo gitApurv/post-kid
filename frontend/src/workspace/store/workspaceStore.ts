@@ -4,14 +4,14 @@ import type WorkspaceState from "../types/state/WorkspaceState";
 import useCollectionStore, {
   mapResponseToCollection,
 } from "../../collection/store/collectionStore";
-import useFolderStore from "../../collection/store/FolderStore";
+import useFolderStore from "../../collection/store/folderStore";
 import useEnvironmentStore from "../../environment/store/environmentStore";
 import useRequestStore from "../../request/store/requestStore";
 import WorkspaceService from "../service/WorkspaceService";
 import CollectionService from "../../collection/service/CollectionService";
 import useWorkspaceMemberStore, {
   mapResponseToMember,
-} from "./WorkspaceMemberStore";
+} from "./workspaceMemberStore";
 import WorkspaceMemberService from "../service/WorkspaceMemberService";
 import useVariableStore from "../../environment/store/variableStore";
 import { setActiveWorkspaceId as setActiveWorkspaceIdUtil } from "../utils/activeWorkspace";

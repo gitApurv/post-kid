@@ -16,10 +16,10 @@ import type Collection from "../types/items/CollectionItem";
 import type RequestItem from "../../request/types/items/RequestItem";
 import useWorkspaceStore from "../../workspace/store/workspaceStore";
 import useCollectionStore from "../store/collectionStore";
-import useFolderStore from "../store/FolderStore";
+import useFolderStore from "../store/folderStore";
 import useRequestStore from "../../request/store/requestStore";
 import useEnvironmentStore from "../../environment/store/environmentStore";
-import { useRootFolders, useRootRequests } from "../store/selectors";
+import { useRootFolders, useRootRequests } from "../hooks/selectors";
 import CollectionService from "../service/CollectionService";
 import FolderService from "../service/FolderService";
 import RequestService from "../../request/service/RequestService";
@@ -223,7 +223,7 @@ export default function CollectionSidebar() {
       useRequestStore.getState().reset();
       useEnvironmentStore.getState().reset();
       const response =
-        await CollectionService.fetchCollections(activeWorkspaceId);
+        await CollectionService.fetchCollections();
       if (response.success) {
         useCollectionStore.getState().upsertCollections(response.data);
       } else {
@@ -261,11 +261,8 @@ export default function CollectionSidebar() {
       useCollectionStore.getState().setCollectionLoading(collectionId, true);
 
       const [foldersRes, requestsRes] = await Promise.all([
-        CollectionService.fetchCollectionFolders(workspaceId, collectionId),
-        CollectionService.fetchCollectionRootRequests(
-          workspaceId,
-          collectionId,
-        ),
+        CollectionService.fetchCollectionFolders(collectionId),
+        CollectionService.fetchCollectionRootRequests(collectionId),
       ]);
 
       if (!foldersRes.success) {
@@ -311,7 +308,7 @@ export default function CollectionSidebar() {
     const { type, collectionId, folderId } = showAddModal;
     let response;
     if (type === "collection") {
-      response = await CollectionService.createCollection(activeWorkspaceId, {
+      response = await CollectionService.createCollection({
         name: newItemName,
         description: newItemDescription,
       });
@@ -328,7 +325,6 @@ export default function CollectionSidebar() {
     } else if (type === "folder" && collectionId) {
       if (!folderId) {
         response = await FolderService.createFolder(
-          activeWorkspaceId,
           collectionId,
           {
             name: newItemName,
@@ -336,7 +332,6 @@ export default function CollectionSidebar() {
         );
       } else {
         response = await FolderService.createSubfolder(
-          activeWorkspaceId,
           collectionId,
           folderId,
           {
@@ -356,7 +351,6 @@ export default function CollectionSidebar() {
     } else if (type === "request" && collectionId) {
       if (!folderId) {
         response = await RequestService.createRequest(
-          activeWorkspaceId,
           collectionId,
           {
             name: newItemName,
@@ -366,7 +360,6 @@ export default function CollectionSidebar() {
         );
       } else {
         response = await RequestService.createFolderRequest(
-          activeWorkspaceId,
           collectionId,
           folderId,
           {
@@ -411,12 +404,10 @@ export default function CollectionSidebar() {
               useFolderStore.getState().setFolderLoading(folderId, true);
               const [subfoldersRes, requestsRes] = await Promise.all([
                 FolderService.fetchSubfolders(
-                  workspaceId,
                   collectionId,
                   folderId,
                 ),
                 FolderService.fetchFolderRequests(
-                  workspaceId,
                   collectionId,
                   folderId,
                 ),
@@ -494,13 +485,11 @@ export default function CollectionSidebar() {
     ) {
       const res = folderId
         ? await RequestService.deleteFolderRequest(
-            activeWorkspaceId!,
             collectionId,
             folderId,
             reqId,
           )
         : await RequestService.deleteRequest(
-            activeWorkspaceId!,
             collectionId,
             reqId,
           );

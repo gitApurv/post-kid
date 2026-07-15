@@ -2,7 +2,6 @@ import { useState, useEffect } from "react";
 import {
   Calendar,
   User,
-  Folder,
   Edit3,
   Check,
   X,
@@ -15,8 +14,8 @@ import CreateEnvironmentModal from "../../environment/components/CreateEnvironme
 import useWorkspaceStore from "../../workspace/store/workspaceStore";
 import useCollectionStore from "../store/collectionStore";
 import useRequestStore from "../../request/store/requestStore";
-import useEnvironmentStore from "../../environment/store/environmentStore";
-import { useRootFolderCount } from "../store/selectors";
+import useEnvironmentStore, { mapResponseToEnvironment } from "../../environment/store/environmentStore";
+import EnvironmentService from "../../environment/service/EnvironmentService";
 import CollectionService from "../service/CollectionService";
 
 export default function CollectionDetails() {
@@ -24,9 +23,6 @@ export default function CollectionDetails() {
     (state) => state.activeCollectionId,
   );
   const collections = useCollectionStore((state) => state.collections);
-  const fetchEnvironments = useEnvironmentStore(
-    (state) => state.fetchEnvironmentsAction,
-  );
   const workspaces = useWorkspaceStore((state) => state.workspaces);
   const activeWorkspaceId = useWorkspaceStore(
     (state) => state.activeWorkspaceId,
@@ -38,7 +34,6 @@ export default function CollectionDetails() {
   const collection = activeCollectionId
     ? collections[activeCollectionId]
     : undefined;
-  const folderCount = useRootFolderCount(collection?.id || "");
 
   const [isEditing, setIsEditing] = useState(false);
   const [editName, setEditName] = useState("");
@@ -47,11 +42,30 @@ export default function CollectionDetails() {
   const [errorMsg, setErrorMsg] = useState("");
   const [showAddEnvModal, setShowAddEnvModal] = useState(false);
 
+  const setEnvironments = useEnvironmentStore((state) => state.setEnvironments);
+  const activeEnvironmentId = useEnvironmentStore((state) => state.activeEnvironmentId);
+  const setActiveEnvironmentId = useEnvironmentStore((state) => state.setActiveEnvironmentId);
+
   useEffect(() => {
-    if (activeCollectionId) {
-      fetchEnvironments(activeCollectionId);
-    }
-  }, [activeCollectionId, fetchEnvironments]);
+    const loadEnvs = async () => {
+      if (activeCollectionId) {
+        const res = await EnvironmentService.fetchEnvironments(activeCollectionId);
+        if (res.success && res.data) {
+          const record = Object.fromEntries(
+            res.data.map((environment) => [
+              environment.id,
+              mapResponseToEnvironment(environment),
+            ]),
+          );
+          setEnvironments(record);
+          if (!activeEnvironmentId || !record[activeEnvironmentId]) {
+            setActiveEnvironmentId(Object.keys(record)[0] ?? "");
+          }
+        }
+      }
+    };
+    loadEnvs();
+  }, [activeCollectionId]);
 
   const [prevCollectionId, setPrevCollectionId] = useState<string | undefined>(
     collection?.id,
@@ -96,7 +110,6 @@ export default function CollectionDetails() {
     setIsSaving(true);
     setErrorMsg("");
     const res = await CollectionService.updateCollection(
-      activeWorkspaceId,
       collection.id,
       {
         name: editName.trim(),
@@ -120,10 +133,10 @@ export default function CollectionDetails() {
 
   const formattedCreatedDate = collection.createdAt
     ? new Date(collection.createdAt).toLocaleDateString(undefined, {
-        year: "numeric",
-        month: "long",
-        day: "numeric",
-      })
+      year: "numeric",
+      month: "long",
+      day: "numeric",
+    })
     : "N/A";
 
   return (
@@ -217,7 +230,7 @@ export default function CollectionDetails() {
       </div>
 
       {/* Meta Stats Panel */}
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
         <div className="glass-panel rounded-xl p-4 flex items-center gap-3">
           <div className="p-2.5 rounded-lg bg-blue-500/10 text-blue-400">
             <User className="w-5 h-5" />
@@ -242,20 +255,6 @@ export default function CollectionDetails() {
             </p>
             <p className="text-xs font-semibold text-slate-200 mt-0.5">
               {formattedCreatedDate}
-            </p>
-          </div>
-        </div>
-
-        <div className="glass-panel rounded-xl p-4 flex items-center gap-3">
-          <div className="p-2.5 rounded-lg bg-brand-success/10 text-brand-success">
-            <Folder className="w-5 h-5" />
-          </div>
-          <div>
-            <p className="text-[10px] font-bold text-slate-500 uppercase tracking-wider">
-              Folders
-            </p>
-            <p className="text-xs font-semibold text-slate-200 mt-0.5">
-              {folderCount}
             </p>
           </div>
         </div>

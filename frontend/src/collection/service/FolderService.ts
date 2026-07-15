@@ -4,7 +4,9 @@ import type ApiResponse from "../../common/types/response/ApiResponse";
 import type FolderRequest from "../types/request/FolderRequest";
 import type FolderResponse from "../types/response/FolderResponse";
 import type RequestItemResponse from "../../request/types/response/RequestItemResponse";
+import { getActiveWorkspaceId } from "../../workspace/utils/activeWorkspace";
 
+// Helper function to extract error messages from Axios errors
 function extractError(error: unknown, fallback: string): string {
   if (axios.isAxiosError<ApiResponse<unknown>>(error)) {
     return error.response?.data?.message || error.message || fallback;
@@ -13,11 +15,12 @@ function extractError(error: unknown, fallback: string): string {
   return fallback;
 }
 
-export async function fetchSubfolders(
-  workspaceId: string,
-  collectionId: string,
-  folderId: string,
-) {
+// Fetch all subfolders of a given folder in a collection
+export async function fetchSubfolders(collectionId: string, folderId: string) {
+  const workspaceId = getActiveWorkspaceId();
+  if (!workspaceId) {
+    return { success: false as const, error: "No active workspace selected" };
+  }
   try {
     const res = await api.get<ApiResponse<FolderResponse[]>>(
       `/workspaces/${workspaceId}/collections/${collectionId}/folders/${folderId}/subfolders`,
@@ -36,11 +39,15 @@ export async function fetchSubfolders(
   }
 }
 
+// Fetch all requests within a specific folder of a collection
 export async function fetchFolderRequests(
-  workspaceId: string,
   collectionId: string,
   folderId: string,
 ) {
+  const workspaceId = getActiveWorkspaceId();
+  if (!workspaceId) {
+    return { success: false as const, error: "No active workspace selected" };
+  }
   try {
     const res = await api.get<ApiResponse<RequestItemResponse[]>>(
       `/workspaces/${workspaceId}/collections/${collectionId}/folders/${folderId}/requests`,
@@ -59,11 +66,12 @@ export async function fetchFolderRequests(
   }
 }
 
-export async function createFolder(
-  workspaceId: string,
-  collectionId: string,
-  req: FolderRequest,
-) {
+// Create a new folder within a collection
+export async function createFolder(collectionId: string, req: FolderRequest) {
+  const workspaceId = getActiveWorkspaceId();
+  if (!workspaceId) {
+    return { success: false as const, error: "No active workspace selected" };
+  }
   try {
     const res = await api.post<ApiResponse<FolderResponse>>(
       `/workspaces/${workspaceId}/collections/${collectionId}/folders`,
@@ -83,12 +91,16 @@ export async function createFolder(
   }
 }
 
+// Create a new subfolder within a specific folder of a collection
 export async function createSubfolder(
-  workspaceId: string,
   collectionId: string,
   folderId: string,
   req: FolderRequest,
 ) {
+  const workspaceId = getActiveWorkspaceId();
+  if (!workspaceId) {
+    return { success: false as const, error: "No active workspace selected" };
+  }
   try {
     const res = await api.post<ApiResponse<FolderResponse>>(
       `/workspaces/${workspaceId}/collections/${collectionId}/folders/${folderId}/subfolders`,
@@ -108,11 +120,12 @@ export async function createSubfolder(
   }
 }
 
-export async function deleteFolder(
-  workspaceId: string,
-  collectionId: string,
-  folderId: string,
-) {
+// Delete a folder from a collection
+export async function deleteFolder(collectionId: string, folderId: string) {
+  const workspaceId = getActiveWorkspaceId();
+  if (!workspaceId) {
+    return { success: false as const, error: "No active workspace selected" };
+  }
   try {
     const res = await api.delete<ApiResponse<unknown>>(
       `/workspaces/${workspaceId}/collections/${collectionId}/folders/${folderId}`,

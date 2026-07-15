@@ -4,13 +4,13 @@ import type UserItem from "../types/items/UserItem";
 import AuthService from "../service/AuthService";
 import useWorkspaceStore from "../../workspace/store/workspaceStore";
 import useCollectionStore from "../../collection/store/collectionStore";
-import useFolderStore from "../../collection/store/FolderStore";
+import useFolderStore from "../../collection/store/folderStore";
 import useRequestStore from "../../request/store/requestStore";
 import useEnvironmentStore from "../../environment/store/environmentStore";
 import useHistoryStore from "../../history/store/historyStore";
 import useWebsocketStore from "../../collaboration/store/useWebsocketStore";
-import useWorkspaceMemberStore from "../../workspace/store/WorkspaceMemberStore";
-import usePresenceStore from "../../workspace/store/PresenceStore";
+import useWorkspaceMemberStore from "../../workspace/store/workspaceMemberStore";
+import usePresenceStore from "../../workspace/store/presenceStore";
 import useVariableStore from "../../environment/store/variableStore";
 import getGravatarUrl from "../utils/gravatar";
 

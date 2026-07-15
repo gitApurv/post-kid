@@ -1,6 +1,11 @@
 import { Trash2 } from "lucide-react";
 import type RequestTreeItemProps from "../types/props/RequestTreeItemProps";
-import useRequestStore from "../../request/store/requestStore";
+import useWorkspaceStore from "../../workspace/store/workspaceStore";
+import useRequestStore, {
+  serializeRequest,
+  mapResponseToRequestItem,
+} from "../../request/store/requestStore";
+import RequestService from "../../request/service/RequestService";
 
 const getMethodColor = (method: string) => {
   switch (method) {
@@ -38,9 +43,32 @@ export default function RequestTreeItem({
         if (activeRequest) {
           const savedRequest = requestStore.requests[activeRequest.id];
           if (savedRequest && activeRequest.url !== savedRequest.url) {
-            await requestStore.updateActiveRequestAction({
-              url: activeRequest.url,
-            });
+            const workspaceId = useWorkspaceStore.getState().activeWorkspaceId;
+            if (workspaceId) {
+              const fields = { url: activeRequest.url };
+              requestStore.updateActiveRequestFields(fields);
+              const updatedRequest = { ...activeRequest, ...fields };
+              const payload = serializeRequest(updatedRequest);
+
+              const response = await RequestService.updateRequest(
+                updatedRequest.collectionId!,
+                updatedRequest.folderId || null,
+                updatedRequest.id,
+                payload,
+              );
+
+              if (response.success && response.data) {
+                const canonical = mapResponseToRequestItem(
+                  response.data,
+                  updatedRequest.collectionId!,
+                  updatedRequest.folderId ?? null,
+                );
+                requestStore.upsertRequest(canonical);
+                requestStore.setActiveRequest(canonical);
+              } else {
+                requestStore.updateActiveRequestFields(activeRequest);
+              }
+            }
           }
         }
         setActiveRequestDirectly(request);
