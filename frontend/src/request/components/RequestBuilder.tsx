@@ -13,30 +13,59 @@ import {
   Edit3,
   ChevronDown,
 } from "lucide-react";
-import useRequestStore from "../store/requestStore";
+import useRequestStore, {
+  mapResponseToRequestItem,
+} from "../store/requestStore";
+import { resolveVariables, serializeRequest } from "../utils/requestUtils";
+import RequestService from "../service/RequestService";
 import type RequestItem from "../types/items/RequestItem";
+import useWorkspaceStore from "../../workspace/store/workspaceStore";
 import useEnvironmentStore from "../../environment/store/environmentStore";
+import useVariableStore from "../../environment/store/variableStore";
 
 const PHANTOM_ROW = { key: "", value: "", active: true };
 
 export default function RequestBuilder() {
   const activeRequest = useRequestStore((state) => state.activeRequest);
   const isExecuting = useRequestStore((state) => state.isExecuting);
-  const updateActiveRequestAction = useRequestStore(
-    (state) => state.updateActiveRequestAction,
-  );
+  const activeWorkspaceId = useWorkspaceStore((state) => state.activeWorkspaceId);
+  const upsertRequest = useRequestStore((state) => state.upsertRequest);
+  const setActiveRequest = useRequestStore((state) => state.setActiveRequest);
   const updateActiveRequestFields = useRequestStore(
     (state) => state.updateActiveRequestFields,
   );
-  const executeRequestAction = useRequestStore(
-    (state) => state.executeRequestAction,
-  );
 
   const handleUpdateRequest = async (fields: Partial<RequestItem>) => {
-    const response = await updateActiveRequestAction(fields);
-    if (response && !response.success) {
-      alert(response.error || "Failed to update request details.");
+    if (!activeRequest) return;
+    if (!activeWorkspaceId) {
+      alert("No active workspace selected");
+      return;
     }
+
+    const previousRequest = { ...activeRequest };
+    updateActiveRequestFields(fields);
+    const updatedRequest = { ...activeRequest, ...fields };
+
+    const payload = serializeRequest(updatedRequest);
+
+    const response = await RequestService.updateRequest(
+      updatedRequest.collectionId!,
+      updatedRequest.folderId || null,
+      updatedRequest.id,
+      payload,
+    );
+
+    if (!response.success) {
+      updateActiveRequestFields(previousRequest);
+      alert(response.error || "Failed to update request details.");
+      return;
+    }
+
+    const canonical = mapResponseToRequestItem(
+      response.data,
+    );
+    upsertRequest(canonical);
+    setActiveRequest(canonical);
   };
 
   const storeParams = useMemo(
@@ -208,12 +237,79 @@ export default function RequestBuilder() {
 
   const currentStyles = getMethodStyle(activeRequest?.method || "GET");
 
+  const allVariables = useVariableStore((state) => state.variables);
+  const setExecuting = useRequestStore((state) => state.setExecuting);
+  const setLastResponse = useRequestStore((state) => state.setLastResponse);
+
   const handleSend = async () => {
     if (!activeRequest) return;
-    const response = await executeRequestAction();
-    if (response && !response.success) {
-      alert(response.error || "Failed to execute request.");
+    if (!activeWorkspaceId) {
+      alert("No active workspace selected");
+      return;
     }
+
+    const variables = Object.fromEntries(
+      Object.values(allVariables)
+        .filter((variable) => variable.environmentId === activeEnvironmentId)
+        .map((variable) => [variable.key, variable]),
+    );
+
+    const resolvedUrl = resolveVariables(activeRequest.url, variables);
+    const resolvedHeaders = Object.fromEntries(
+      activeRequest.headers
+        .filter((header) => header.active && header.key)
+        .map((header) => [
+          resolveVariables(header.key, variables),
+          resolveVariables(header.value, variables),
+        ]),
+    );
+    const resolvedBody =
+      activeRequest.bodyType !== "none"
+        ? resolveVariables(activeRequest.bodyJson || "", variables)
+        : "";
+
+    const payload = {
+      url: resolvedUrl,
+      method: activeRequest.method,
+      headers: resolvedHeaders,
+      body: resolvedBody,
+      authType: activeRequest.authType,
+      authValue: activeRequest.authValue,
+      timeoutSeconds: Math.floor((activeRequest.timeoutMs ?? 5000) / 1000),
+    };
+
+    setExecuting(true);
+    setLastResponse(null);
+
+    const res = await RequestService.executeRequest(
+      activeRequest.collectionId!,
+      activeRequest.folderId ?? null,
+      payload,
+    );
+
+    setExecuting(false);
+
+    if (!res.success) {
+      setLastResponse({
+        status: 500,
+        statusText: "Error",
+        latency: 0,
+        size: 0,
+        headers: {},
+        body: res.error ?? "Request failed",
+      });
+      return;
+    }
+
+    const exec = res.data;
+    setLastResponse({
+      status: exec.statusCode,
+      statusText: exec.success ? "OK" : "Error",
+      latency: exec.durationMs,
+      size: exec.responseBody ? new Blob([exec.responseBody]).size : 0,
+      headers: exec.responseHeaders ?? {},
+      body: exec.errorMessage ?? exec.responseBody ?? "",
+    });
   };
 
   const handleGridChange = (

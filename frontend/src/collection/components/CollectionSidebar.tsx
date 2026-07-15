@@ -287,7 +287,7 @@ export default function CollectionSidebar() {
       );
       useRequestStore
         .getState()
-        .upsertRequestsFromResponse(requestsRes.data, collectionId, null);
+        .upsertRequestsFromResponse(requestsRes.data);
 
       useCollectionStore.getState().upsertCollection({
         ...collection,
@@ -350,7 +350,7 @@ export default function CollectionSidebar() {
       }
     } else if (type === "request" && collectionId) {
       if (!folderId) {
-        response = await RequestService.createRequest(
+        response = await RequestService.createCollectionRequest(
           collectionId,
           {
             name: newItemName,
@@ -372,11 +372,7 @@ export default function CollectionSidebar() {
       if (response.success) {
         useRequestStore
           .getState()
-          .upsertRequestsFromResponse(
-            [response.data],
-            collectionId,
-            folderId || null,
-          );
+          .upsertRequestsFromResponse([response.data]);
       }
     }
 
@@ -424,11 +420,7 @@ export default function CollectionSidebar() {
                 );
                 useRequestStore
                   .getState()
-                  .upsertRequestsFromResponse(
-                    requestsRes.data,
-                    collectionId,
-                    folderId,
-                  );
+                  .upsertRequestsFromResponse(requestsRes.data);
                 useFolderStore.getState().upsertFolder({
                   ...folder,
                   isLoaded: true,
@@ -489,7 +481,7 @@ export default function CollectionSidebar() {
             folderId,
             reqId,
           )
-        : await RequestService.deleteRequest(
+        : await RequestService.deleteCollectionRequest(
             collectionId,
             reqId,
           );

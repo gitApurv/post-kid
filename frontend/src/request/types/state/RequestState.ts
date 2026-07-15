@@ -10,18 +10,13 @@ export default interface RequestState {
   isExecuting: boolean;
   lastResponse: LastResponse | null;
 
-  // Mutations
   upsertRequest: (request: RequestItem) => void;
 
   upsertRequests: (requests: RequestItem[]) => void;
 
-  upsertRequestsFromResponse: (
-    requests: RequestItemResponse[],
-    collectionId: string,
-    folderId: string | null,
-  ) => void;
+  upsertRequestsFromResponse: (requests: RequestItemResponse[]) => void;
 
-  removeRequest: (id: string) => void;
+  removeRequest: (requestId: string) => void;
 
   removeRequestsByFolderIds: (folderIds: string[]) => void;
 
@@ -31,7 +26,7 @@ export default interface RequestState {
 
   setActiveRequestDirectly: (req: RequestItem | null) => void;
 
-  setActiveCollection: (id: string | null) => void;
+  setActiveCollection: (collectionId: string | null) => void;
 
   updateActiveRequestFields: (fields: Partial<RequestItem>) => void;
 
@@ -40,11 +35,4 @@ export default interface RequestState {
   setLastResponse: (response: LastResponse | null) => void;
 
   reset: () => void;
-
-  // Actions
-  updateActiveRequestAction: (
-    fields: Partial<RequestItem>,
-  ) => Promise<{ success: boolean; error?: string }>;
-
-  executeRequestAction: () => Promise<{ success: boolean; error?: string }>;
 }

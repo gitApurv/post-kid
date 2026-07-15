@@ -4,7 +4,10 @@ import type ApiResponse from "../../common/types/response/ApiResponse";
 import type RequestItemResponse from "../types/response/RequestItemResponse";
 import type ExecutionResponse from "../types/response/ExecutionResponse";
 import type RequestItemRequest from "../types/request/RequestItemRequest";
+import type RequestExecutionRequest from "../types/request/RequestExecutionRequest";
+import { getActiveWorkspaceId } from "../../workspace/utils/activeWorkspace";
 
+// Helper function to extract error messages from Axios errors
 function extractError(error: unknown, fallback: string): string {
   if (axios.isAxiosError<ApiResponse<unknown>>(error)) {
     return error.response?.data?.message || error.message || fallback;
@@ -13,11 +16,15 @@ function extractError(error: unknown, fallback: string): string {
   return fallback;
 }
 
-export async function createRequest(
-  workspaceId: string,
+// Function to create a request within a collection
+export async function createCollectionRequest(
   collectionId: string,
   req: { name: string; method: string; url: string },
 ) {
+  const workspaceId = getActiveWorkspaceId();
+  if (!workspaceId) {
+    return { success: false as const, error: "No active workspace selected" };
+  }
   try {
     const res = await api.post<ApiResponse<RequestItemResponse>>(
       `/workspaces/${workspaceId}/collections/${collectionId}/requests`,
@@ -38,12 +45,16 @@ export async function createRequest(
   }
 }
 
+// Function to create a request within a folder
 export async function createFolderRequest(
-  workspaceId: string,
   collectionId: string,
   folderId: string,
   req: { name: string; method: string; url: string },
 ) {
+  const workspaceId = getActiveWorkspaceId();
+  if (!workspaceId) {
+    return { success: false as const, error: "No active workspace selected" };
+  }
   try {
     const res = await api.post<ApiResponse<RequestItemResponse>>(
       `/workspaces/${workspaceId}/collections/${collectionId}/folders/${folderId}/requests`,
@@ -64,11 +75,15 @@ export async function createFolderRequest(
   }
 }
 
-export async function deleteRequest(
-  workspaceId: string,
+// Function to delete a request from a collection
+export async function deleteCollectionRequest(
   collectionId: string,
   requestId: string,
 ) {
+  const workspaceId = getActiveWorkspaceId();
+  if (!workspaceId) {
+    return { success: false as const, error: "No active workspace selected" };
+  }
   try {
     const res = await api.delete<ApiResponse<unknown>>(
       `/workspaces/${workspaceId}/collections/${collectionId}/requests/${requestId}`,
@@ -88,12 +103,16 @@ export async function deleteRequest(
   }
 }
 
+// Function to delete a request from a folder
 export async function deleteFolderRequest(
-  workspaceId: string,
   collectionId: string,
   folderId: string,
   requestId: string,
 ) {
+  const workspaceId = getActiveWorkspaceId();
+  if (!workspaceId) {
+    return { success: false as const, error: "No active workspace selected" };
+  }
   try {
     const res = await api.delete<ApiResponse<unknown>>(
       `/workspaces/${workspaceId}/collections/${collectionId}/folders/${folderId}/requests/${requestId}`,
@@ -113,13 +132,17 @@ export async function deleteFolderRequest(
   }
 }
 
+// Function to update a request, either in a collection or a folder
 export async function updateRequest(
-  workspaceId: string,
   collectionId: string,
   folderId: string | null,
   requestId: string,
   payload: RequestItemRequest,
 ) {
+  const workspaceId = getActiveWorkspaceId();
+  if (!workspaceId) {
+    return { success: false as const, error: "No active workspace selected" };
+  }
   const targetUrl = folderId
     ? `/workspaces/${workspaceId}/collections/${collectionId}/folders/${folderId}/requests/${requestId}`
     : `/workspaces/${workspaceId}/collections/${collectionId}/requests/${requestId}`;
@@ -143,20 +166,16 @@ export async function updateRequest(
   }
 }
 
+// Function to execute a request, either in a collection or a folder
 export async function executeRequest(
-  workspaceId: string,
   collectionId: string,
   folderId: string | null,
-  payload: {
-    url: string;
-    method: string;
-    headers: Record<string, string>;
-    body: string;
-    authType: string;
-    authValue: Record<string, string>;
-    timeoutSeconds: number;
-  },
+  payload: RequestExecutionRequest,
 ) {
+  const workspaceId = getActiveWorkspaceId();
+  if (!workspaceId) {
+    return { success: false as const, error: "No active workspace selected" };
+  }
   const executeUrl = folderId
     ? `/workspaces/${workspaceId}/collections/${collectionId}/folders/${folderId}/requests/execute`
     : `/workspaces/${workspaceId}/collections/${collectionId}/requests/execute`;
@@ -181,9 +200,9 @@ export async function executeRequest(
 }
 
 const RequestService = {
-  createRequest,
+  createCollectionRequest,
   createFolderRequest,
-  deleteRequest,
+  deleteCollectionRequest,
   deleteFolderRequest,
   updateRequest,
   executeRequest,

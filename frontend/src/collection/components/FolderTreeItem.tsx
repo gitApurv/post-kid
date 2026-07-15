@@ -71,7 +71,7 @@ export default function FolderTreeItem({
       );
       useRequestStore
         .getState()
-        .upsertRequestsFromResponse(requestsRes.data, collectionId, folder.id);
+        .upsertRequestsFromResponse(requestsRes.data);
 
       useFolderStore.getState().upsertFolder({
         ...folder,

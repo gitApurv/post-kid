@@ -2,9 +2,9 @@ import { Trash2 } from "lucide-react";
 import type RequestTreeItemProps from "../types/props/RequestTreeItemProps";
 import useWorkspaceStore from "../../workspace/store/workspaceStore";
 import useRequestStore, {
-  serializeRequest,
   mapResponseToRequestItem,
 } from "../../request/store/requestStore";
+import { serializeRequest } from "../../request/utils/requestUtils";
 import RequestService from "../../request/service/RequestService";
 
 const getMethodColor = (method: string) => {
@@ -60,8 +60,6 @@ export default function RequestTreeItem({
               if (response.success && response.data) {
                 const canonical = mapResponseToRequestItem(
                   response.data,
-                  updatedRequest.collectionId!,
-                  updatedRequest.folderId ?? null,
                 );
                 requestStore.upsertRequest(canonical);
                 requestStore.setActiveRequest(canonical);
