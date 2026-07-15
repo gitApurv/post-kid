@@ -2,61 +2,54 @@ import { useEffect, useRef } from "react";
 import useWorkspaceStore from "../store/workspaceStore";
 import CollectionService from "../../collection/service/CollectionService";
 import WorkspaceMemberService from "../service/WorkspaceMemberService";
-import useCollectionStore from "../../collection/store/collectionStore";
-import useWorkspaceMemberStore from "../store/WorkspaceMemberStore";
+import useCollectionStore, {
+  mapResponseToCollection,
+} from "../../collection/store/collectionStore";
+import useWorkspaceMemberStore, {
+  mapResponseToMember,
+} from "../store/WorkspaceMemberStore";
 
 /**
- * Watches activeWorkspaceId and re-fetches collections + members whenever
- * it changes. This hook fires ONLY on changes (not on initial mount), so it
- * does not duplicate the fetch already performed by fetchWorkspacesAction at
- * startup. It is the React-side reaction to a router-triggered workspace
- * switch (e.g. when a WebSocket event removes the current workspace).
+ * Custom hook to reactively synchronize collections and workspace members
+ * whenever the active workspace changes.
+ *
+ * Note: This hook ignores the initial mount to prevent duplicate API requests
+ * (the initial load is already handled during app initialization). It acts as
+ * a fallback observer for workspace changes triggered programmatically, such
+ * as background workspace switch events received via WebSockets.
  */
 export function useActiveWorkspaceData() {
-  const activeWorkspaceId = useWorkspaceStore((s) => s.activeWorkspaceId);
-  // undefined = not yet observed; null | string = observed value
+  const activeWorkspaceId = useWorkspaceStore(
+    (state) => state.activeWorkspaceId,
+  );
   const prevIdRef = useRef<string | null | undefined>(undefined);
 
   useEffect(() => {
-    // Skip the very first render — fetchWorkspacesAction already handles the
-    // initial load via setActiveWorkspaceAction.
+    // Skip initial mount check to avoid duplicating the initialization fetch
     if (prevIdRef.current === undefined) {
       prevIdRef.current = activeWorkspaceId;
       return;
     }
 
-    // Only react to an actual change.
+    // Only trigger fetches if the workspace ID actually changed
     if (prevIdRef.current === activeWorkspaceId) return;
     prevIdRef.current = activeWorkspaceId;
 
     if (!activeWorkspaceId) return;
 
-    // Fetch collections for the newly active workspace.
-    CollectionService.fetchCollections(activeWorkspaceId).then((res) => {
+    // Load collections matching the newly selected workspace
+    CollectionService.fetchCollections().then((res) => {
       if (!res.success) return;
-      useCollectionStore.getState().upsertCollections(
-        res.data.map((c) => ({
-          id: c.id,
-          name: c.name,
-          description: c.description || "",
-          isLoaded: false,
-          isLoading: false,
-          createdAt: c.createdAt,
-          updatedAt: c.updatedAt,
-        })),
-      );
+      useCollectionStore
+        .getState()
+        .upsertCollections(res.data.map(mapResponseToCollection));
     });
 
-    // Fetch members for the newly active workspace.
-    WorkspaceMemberService.fetchMembers(activeWorkspaceId).then((res) => {
+    // Load members belonging to the newly selected workspace
+    WorkspaceMemberService.fetchMembers().then((res) => {
       if (!res.success) return;
-      const mapped = res.data.map((m: any) => ({
-        workspaceId: activeWorkspaceId,
-        userId: m.userId,
-        username: m.username,
-        role: m.role,
-      }));
-      useWorkspaceMemberStore.getState().upsertMembers(activeWorkspaceId, mapped);
+      const mapped = res.data.map(mapResponseToMember);
+      useWorkspaceMemberStore.getState().upsertMembers(mapped);
     });
   }, [activeWorkspaceId]);
 }

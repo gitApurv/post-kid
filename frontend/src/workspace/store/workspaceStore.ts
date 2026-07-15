@@ -1,14 +1,20 @@
 import { create } from "zustand";
 import type WorkspaceItem from "../types/items/WorkspaceItem";
 import type WorkspaceState from "../types/state/WorkspaceState";
-import useCollectionStore from "../../collection/store/collectionStore";
+import useCollectionStore, {
+  mapResponseToCollection,
+} from "../../collection/store/collectionStore";
 import useFolderStore from "../../collection/store/FolderStore";
 import useEnvironmentStore from "../../environment/store/environmentStore";
 import useRequestStore from "../../request/store/requestStore";
 import WorkspaceService from "../service/WorkspaceService";
 import CollectionService from "../../collection/service/CollectionService";
-import useWorkspaceMemberStore from "./WorkspaceMemberStore";
+import useWorkspaceMemberStore, {
+  mapResponseToMember,
+} from "./WorkspaceMemberStore";
 import WorkspaceMemberService from "../service/WorkspaceMemberService";
+import useVariableStore from "../../environment/store/variableStore";
+import { setActiveWorkspaceId as setActiveWorkspaceIdUtil } from "../utils/activeWorkspace";
 
 const useWorkspaceStore = create<WorkspaceState>((set, get) => ({
   workspaces: {},
@@ -17,35 +23,46 @@ const useWorkspaceStore = create<WorkspaceState>((set, get) => ({
   // ─── Mutations ───────────────────────────────────────────────
 
   upsertWorkspace: (workspace) =>
-    set((state) => ({
-      workspaces: { ...state.workspaces, [workspace.id]: workspace },
-    })),
+    set((state) => {
+      const existing = state.workspaces[workspace.id];
+      return {
+        workspaces: {
+          ...state.workspaces,
+          [workspace.id]: {
+            ...existing,
+            ...workspace,
+          },
+        },
+      };
+    }),
 
-  upsertWorkspaces: (list) =>
-    set((state) => ({
-      workspaces: {
-        ...state.workspaces,
-        ...Object.fromEntries(
-          list.map((workspace) => [workspace.id, workspace]),
-        ),
-      },
-    })),
+  upsertWorkspaces: (workspaces) =>
+    set((state) => {
+      const newWorkspaces = { ...state.workspaces };
+      for (const workspace of workspaces) {
+        newWorkspaces[workspace.id] = {
+          ...newWorkspaces[workspace.id],
+          ...workspace,
+        };
+      }
+      return { workspaces: newWorkspaces };
+    }),
 
-  removeWorkspace: (id) =>
+  removeWorkspace: (workspaceId) =>
     set((state) => {
       const remainingWorkspaces = { ...state.workspaces };
-      delete remainingWorkspaces[id];
+      delete remainingWorkspaces[workspaceId];
       return { workspaces: remainingWorkspaces };
     }),
 
-  updateMemberCount: (id, delta) =>
+  updateMemberCount: (workspaceId, delta) =>
     set((state) => {
-      const existing = state.workspaces[id];
+      const existing = state.workspaces[workspaceId];
       if (!existing) return state;
       return {
         workspaces: {
           ...state.workspaces,
-          [id]: {
+          [workspaceId]: {
             ...existing,
             memberCount: Math.max(1, existing.memberCount + delta),
           },
@@ -53,49 +70,46 @@ const useWorkspaceStore = create<WorkspaceState>((set, get) => ({
       };
     }),
 
-  setActiveWorkspaceId: (id) => set({ activeWorkspaceId: id }),
+  setActiveWorkspaceId: (workspaceId) => {
+    set({ activeWorkspaceId: workspaceId });
+    setActiveWorkspaceIdUtil(workspaceId);
+  },
 
-  reset: () => set({ workspaces: {}, activeWorkspaceId: null }),
+  reset: () => {
+    set({ workspaces: {}, activeWorkspaceId: null });
+    setActiveWorkspaceIdUtil(null);
+  },
 
   // ─── Actions ─────────────────────────────────────────────────
 
-  setActiveWorkspaceAction: async (id) => {
-    get().setActiveWorkspaceId(id);
+  setActiveWorkspaceAction: async (workspaceId) => {
+    get().setActiveWorkspaceId(workspaceId);
 
+    // Reset all related stores when switching workspaces
     useEnvironmentStore.getState().reset();
     useRequestStore.getState().reset();
     useFolderStore.getState().reset();
     useCollectionStore.getState().reset();
     useWorkspaceMemberStore.getState().reset();
+    useVariableStore.getState().reset();
 
-    if (!id) {
+    if (!workspaceId) {
       return { success: true };
     }
 
-    const collectionsRes = await CollectionService.fetchCollections(id);
+    // Fetch collections for the active workspace
+    const collectionsRes = await CollectionService.fetchCollections();
     if (!collectionsRes.success) return collectionsRes;
 
-    useCollectionStore.getState().upsertCollections(
-      collectionsRes.data.map((collection) => ({
-        id: collection.id,
-        name: collection.name,
-        description: collection.description || "",
-        isLoaded: false,
-        isLoading: false,
-        createdAt: collection.createdAt,
-        updatedAt: collection.updatedAt,
-      })),
-    );
+    useCollectionStore
+      .getState()
+      .upsertCollections(collectionsRes.data.map(mapResponseToCollection));
 
-    const membersRes = await WorkspaceMemberService.fetchMembers(id);
+    // Fetch members for the active workspace
+    const membersRes = await WorkspaceMemberService.fetchMembers();
     if (membersRes.success) {
-      const mapped = membersRes.data.map((m: any) => ({
-        workspaceId: id,
-        userId: m.userId,
-        username: m.username,
-        role: m.role,
-      }));
-      useWorkspaceMemberStore.getState().upsertMembers(id, mapped);
+      const mapped = membersRes.data.map(mapResponseToMember);
+      useWorkspaceMemberStore.getState().upsertMembers(mapped);
     }
 
     return { success: true };
@@ -105,6 +119,7 @@ const useWorkspaceStore = create<WorkspaceState>((set, get) => ({
     const res = await WorkspaceService.fetchWorkspaces();
     if (!res.success) return res;
 
+    // Map the fetched workspaces to include isLoading property
     const mapped: WorkspaceItem[] = res.data.map((workspace) => ({
       ...workspace,
       isLoading: false,
@@ -114,6 +129,7 @@ const useWorkspaceStore = create<WorkspaceState>((set, get) => ({
     const { activeWorkspaceId, workspaces } = get();
     const ids = Object.keys(workspaces);
 
+    // If the current active workspace is not in the fetched list, set a fallback active workspace
     if (!activeWorkspaceId || !workspaces[activeWorkspaceId]) {
       const fallbackId = ids[0] ?? null;
       await get().setActiveWorkspaceAction(fallbackId);
@@ -129,19 +145,21 @@ const useWorkspaceStore = create<WorkspaceState>((set, get) => ({
     const newWorkspace: WorkspaceItem = { ...res.data, isLoading: false };
     get().upsertWorkspace(newWorkspace);
 
+    // Set the newly created workspace as the active workspace
     await get().setActiveWorkspaceAction(newWorkspace.id);
 
     return { success: true };
   },
 
-  deleteWorkspaceAction: async (id) => {
-    const res = await WorkspaceService.deleteWorkspace(id);
+  deleteWorkspaceAction: async (workspaceId) => {
+    const res = await WorkspaceService.deleteWorkspace();
     if (!res.success) return res;
 
-    get().removeWorkspace(id);
+    get().removeWorkspace(workspaceId);
 
+    // If the deleted workspace was the active one, set a fallback active workspace
     const { activeWorkspaceId, workspaces } = get();
-    if (activeWorkspaceId === id) {
+    if (activeWorkspaceId === workspaceId) {
       const remaining = Object.keys(workspaces);
       const fallbackId = remaining[0] ?? null;
       await get().setActiveWorkspaceAction(fallbackId);

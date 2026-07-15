@@ -3,9 +3,9 @@ import api from "../../config/axios";
 import type ApiResponse from "../../common/types/response/ApiResponse";
 import type WorkspaceResponse from "../types/response/WorkspaceResponse";
 import type WorkspaceRequest from "../types/request/WorkspaceRequest";
-import type MemberResponse from "../types/response/MemberResponse";
-import type InviteMemberRequest from "../types/request/InviteMemberRequest";
+import { getActiveWorkspaceId } from "../utils/activeWorkspace";
 
+// Helper function to extract error messages from Axios errors
 function extractError(error: unknown, fallback: string): string {
   if (axios.isAxiosError<ApiResponse<unknown>>(error)) {
     return error.response?.data?.message || error.message || fallback;
@@ -14,6 +14,7 @@ function extractError(error: unknown, fallback: string): string {
   return fallback;
 }
 
+// Fetch all workspaces for the current user
 export async function fetchWorkspaces() {
   try {
     const res = await api.get<ApiResponse<WorkspaceResponse[]>>("/workspaces");
@@ -32,6 +33,7 @@ export async function fetchWorkspaces() {
   }
 }
 
+// Create a new workspace
 export async function createWorkspace(request: WorkspaceRequest) {
   try {
     const res = await api.post<ApiResponse<WorkspaceResponse>>(
@@ -53,10 +55,12 @@ export async function createWorkspace(request: WorkspaceRequest) {
   }
 }
 
-export async function updateWorkspace(
-  workspaceId: string,
-  request: WorkspaceRequest,
-) {
+// Update an existing workspace
+export async function updateWorkspace(request: WorkspaceRequest) {
+  const workspaceId = getActiveWorkspaceId();
+  if (!workspaceId) {
+    return { success: false as const, error: "No active workspace selected" };
+  }
   try {
     const res = await api.put<ApiResponse<WorkspaceResponse>>(
       `/workspaces/${workspaceId}`,
@@ -77,7 +81,12 @@ export async function updateWorkspace(
   }
 }
 
-export async function deleteWorkspace(workspaceId: string) {
+// Delete the active workspace
+export async function deleteWorkspace() {
+  const workspaceId = getActiveWorkspaceId();
+  if (!workspaceId) {
+    return { success: false as const, error: "No active workspace selected" };
+  }
   try {
     const res = await api.delete<ApiResponse<void>>(
       `/workspaces/${workspaceId}`,
@@ -97,99 +106,11 @@ export async function deleteWorkspace(workspaceId: string) {
   }
 }
 
-export async function fetchMembers(workspaceId: string) {
-  try {
-    const res = await api.get<ApiResponse<MemberResponse[]>>(
-      `/workspaces/${workspaceId}/members`,
-    );
-    if (res.data.success && res.data.data) {
-      return { success: true as const, data: res.data.data };
-    }
-    return {
-      success: false as const,
-      error: res.data.message || "Failed to fetch members.",
-    };
-  } catch (error) {
-    return {
-      success: false as const,
-      error: extractError(error, "Failed to fetch members."),
-    };
-  }
-}
-
-export async function inviteMember(
-  workspaceId: string,
-  request: InviteMemberRequest,
-) {
-  try {
-    const res = await api.post<ApiResponse<MemberResponse>>(
-      `/workspaces/${workspaceId}/members`,
-      request,
-    );
-    if (res.data.success && res.data.data) {
-      return { success: true as const, data: res.data.data };
-    }
-    return {
-      success: false as const,
-      error: res.data.message || "Failed to invite member.",
-    };
-  } catch (error) {
-    return {
-      success: false as const,
-      error: extractError(error, "Failed to invite member."),
-    };
-  }
-}
-
-export async function removeMember(workspaceId: string, userId: string) {
-  try {
-    const res = await api.delete<ApiResponse<void>>(
-      `/workspaces/${workspaceId}/members/${userId}`,
-    );
-    if (res.data.success) {
-      return { success: true as const };
-    }
-    return {
-      success: false as const,
-      error: res.data.message || "Failed to remove member.",
-    };
-  } catch (error) {
-    return {
-      success: false as const,
-      error: extractError(error, "Failed to remove member."),
-    };
-  }
-}
-
-export async function leaveWorkspace(workspaceId: string) {
-  try {
-    const res = await api.delete<ApiResponse<void>>(
-      `/workspaces/${workspaceId}/members/leave`,
-    );
-    if (res.data.success) {
-      return { success: true as const };
-    }
-    return {
-      success: false as const,
-      error: res.data.message || "Failed to leave workspace.",
-    };
-  } catch (error) {
-    return {
-      success: false as const,
-      error: extractError(error, "Failed to leave workspace."),
-    };
-  }
-}
-
 const WorkspaceService = {
   fetchWorkspaces,
   createWorkspace,
   updateWorkspace,
   deleteWorkspace,
-  fetchMembers,
-  inviteMember,
-  removeMember,
-  leaveWorkspace,
 };
 
 export default WorkspaceService;

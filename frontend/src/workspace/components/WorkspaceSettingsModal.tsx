@@ -15,6 +15,7 @@ import md5 from "blueimp-md5";
 import useWorkspaceStore from "../store/workspaceStore";
 import useAuthStore from "../../auth/store/authStore";
 import WorkspaceService from "../service/WorkspaceService";
+import WorkspaceMemberService from "../service/WorkspaceMemberService";
 import type MemberResponse from "../types/response/MemberResponse";
 import type { WorkspaceRole } from "../types/items/WorkspaceRole";
 import type ModalProps from "../../common/types/props/ModalProps";
@@ -95,7 +96,7 @@ export default function WorkspaceSettingsModal({
     if (!editName.trim() || isSaving) return;
 
     setIsSaving(true);
-    const res = await WorkspaceService.updateWorkspace(id, {
+    const res = await WorkspaceService.updateWorkspace({
       name: editName.trim(),
       description: editDescription.trim() || undefined,
     });
@@ -137,7 +138,7 @@ export default function WorkspaceSettingsModal({
     setInviteRole("MEMBER");
 
     setLoadingMembers((prev) => ({ ...prev, [workspaceId]: true }));
-    const res = await WorkspaceService.fetchMembers(workspaceId);
+    const res = await WorkspaceMemberService.fetchMembers();
     if (res.success && res.data) {
       setMembersMap((prev) => ({ ...prev, [workspaceId]: res.data! }));
       setExpandedWorkspaceId(workspaceId);
@@ -152,7 +153,7 @@ export default function WorkspaceSettingsModal({
     if (!inviteEmail.trim() || isInviting) return;
 
     setIsInviting(true);
-    const res = await WorkspaceService.inviteMember(workspaceId, {
+    const res = await WorkspaceMemberService.inviteMember({
       email: inviteEmail.trim(),
       role: inviteRole,
     });
@@ -187,8 +188,8 @@ export default function WorkspaceSettingsModal({
 
     if (confirm(confirmMessage)) {
       const res = isSelf
-        ? await WorkspaceService.leaveWorkspace(workspaceId)
-        : await WorkspaceService.removeMember(workspaceId, userId);
+        ? await WorkspaceMemberService.leaveWorkspace()
+        : await WorkspaceMemberService.removeMember(userId);
       if (res.success) {
         if (isSelf) {
           removeWorkspace(workspaceId);
@@ -374,67 +375,69 @@ export default function WorkspaceSettingsModal({
                         </div>
 
                         {/* Actions */}
-                        <div
-                          className="flex items-center gap-1 shrink-0"
-                          onClick={(e) => e.stopPropagation()}
-                        >
-                          <button
-                            onClick={() => handleToggleMembers(workspace.id)}
-                            disabled={isMembersLoading}
-                            className={`p-1.5 rounded-lg transition-standard cursor-pointer ${
-                              isMembersExpanded
-                                ? "bg-brand-primary/10 text-brand-primary"
-                                : "hover:bg-white/5 text-slate-400 hover:text-slate-200"
-                            }`}
-                            title="Manage Members"
+                        {isCurrentActive && (
+                          <div
+                            className="flex items-center gap-1 shrink-0"
+                            onClick={(e) => e.stopPropagation()}
                           >
-                            {isMembersLoading ? (
-                              <Loader2 className="w-4 h-4 animate-spin" />
-                            ) : (
-                              <Users className="w-4 h-4" />
-                            )}
-                          </button>
-                          <button
-                            onClick={() =>
-                              handleStartEdit(
-                                workspace.id,
-                                workspace.name,
-                                workspace.description,
-                              )
-                            }
-                            className="p-1.5 hover:bg-white/5 rounded-lg text-slate-400 hover:text-slate-200 transition-standard cursor-pointer"
-                            title="Edit Workspace"
-                          >
-                            <Edit3 className="w-4 h-4" />
-                          </button>
-                          {!workspace.isDefault &&
-                            (workspace.ownerUsername === currentUser?.name ? (
-                              <button
-                                onClick={() =>
-                                  handleDelete(workspace.id, workspace.name)
-                                }
-                                className="p-1.5 hover:bg-brand-error/10 rounded-lg text-slate-400 hover:text-brand-error transition-standard cursor-pointer"
-                                title="Delete Workspace"
-                              >
-                                <Trash2 className="w-4 h-4" />
-                              </button>
-                            ) : (
-                              <button
-                                onClick={() =>
-                                  handleRemoveMember(
-                                    workspace.id,
-                                    "",
-                                    currentUser?.name || "",
-                                    currentUser?.email || "",
-                                  )
-                                }
-                                className="p-1.5 hover:bg-brand-error/10 rounded-lg text-slate-400 hover:text-brand-error transition-standard cursor-pointer"
-                                title="Leave Workspace"
-                              >
-                                <LogOut className="w-4 h-4" />
-                              </button>
-                            ))}
-                        </div>
+                            <button
+                              onClick={() => handleToggleMembers(workspace.id)}
+                              disabled={isMembersLoading}
+                              className={`p-1.5 rounded-lg transition-standard cursor-pointer ${
+                                isMembersExpanded
+                                  ? "bg-brand-primary/10 text-brand-primary"
+                                  : "hover:bg-white/5 text-slate-400 hover:text-slate-200"
+                              }`}
+                              title="Manage Members"
+                            >
+                              {isMembersLoading ? (
+                                <Loader2 className="w-4 h-4 animate-spin" />
+                              ) : (
+                                <Users className="w-4 h-4" />
+                              )}
+                            </button>
+                            <button
+                              onClick={() =>
+                                handleStartEdit(
+                                  workspace.id,
+                                  workspace.name,
+                                  workspace.description,
+                                )
+                              }
+                              className="p-1.5 hover:bg-white/5 rounded-lg text-slate-400 hover:text-slate-200 transition-standard cursor-pointer"
+                              title="Edit Workspace"
+                            >
+                              <Edit3 className="w-4 h-4" />
+                            </button>
+                            {!workspace.isDefault &&
+                              (workspace.ownerUsername === currentUser?.name ? (
+                                <button
+                                  onClick={() =>
+                                    handleDelete(workspace.id, workspace.name)
+                                  }
+                                  className="p-1.5 hover:bg-brand-error/10 rounded-lg text-slate-400 hover:text-brand-error transition-standard cursor-pointer"
+                                  title="Delete Workspace"
+                                >
+                                  <Trash2 className="w-4 h-4" />
+                                </button>
+                              ) : (
+                                <button
+                                  onClick={() =>
+                                    handleRemoveMember(
+                                      workspace.id,
+                                      "",
+                                      currentUser?.name || "",
+                                      currentUser?.email || "",
+                                    )
+                                  }
+                                  className="p-1.5 hover:bg-brand-error/10 rounded-lg text-slate-400 hover:text-brand-error transition-standard cursor-pointer"
+                                  title="Leave Workspace"
+                                >
+                                  <LogOut className="w-4 h-4" />
+                                </button>
+                              ))}
+                          </div>
+                        )}
                       </div>
                     )}
 

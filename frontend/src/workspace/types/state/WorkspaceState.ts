@@ -5,22 +5,20 @@ export default interface WorkspaceState {
   workspaces: Record<string, WorkspaceItem>;
   activeWorkspaceId: string | null;
 
-  // Mutations
   upsertWorkspace: (workspace: WorkspaceItem) => void;
 
   upsertWorkspaces: (workspaces: WorkspaceItem[]) => void;
 
-  removeWorkspace: (id: string) => void;
+  removeWorkspace: (workspaceId: string) => void;
 
-  updateMemberCount: (id: string, delta: number) => void;
+  updateMemberCount: (workspaceId: string, delta: number) => void;
 
-  setActiveWorkspaceId: (id: string | null) => void;
+  setActiveWorkspaceId: (workspaceId: string | null) => void;
 
   reset: () => void;
 
-  // Actions
   setActiveWorkspaceAction: (
-    id: string | null,
+    workspaceId: string | null,
   ) => Promise<{ success: boolean; error?: string }>;
 
   fetchWorkspacesAction: () => Promise<{ success: boolean; error?: string }>;
@@ -30,6 +28,6 @@ export default interface WorkspaceState {
   ) => Promise<{ success: boolean; error?: string }>;
 
   deleteWorkspaceAction: (
-    id: string,
+    workspaceId: string,
   ) => Promise<{ success: boolean; error?: string }>;
 }

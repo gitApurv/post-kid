@@ -1,17 +1,9 @@
-import useWorkspaceStore from "../store/workspaceStore";
 import useWorkspaceMemberStore from "../store/WorkspaceMemberStore";
 import usePresenceStore from "../store/PresenceStore";
 
 export default function WorkspaceMembersNav() {
-  const activeWorkspaceId = useWorkspaceStore(
-    (state) => state.activeWorkspaceId,
-  );
-  const members = useWorkspaceMemberStore((state) =>
-    activeWorkspaceId ? state.members[activeWorkspaceId] || {} : {},
-  );
-  const presence = usePresenceStore((state) =>
-    activeWorkspaceId ? state.presence[activeWorkspaceId] || {} : {},
-  );
+  const members = useWorkspaceMemberStore((state) => state.members);
+  const presence = usePresenceStore((state) => state.presence);
 
   const memberList = Object.values(members);
 
@@ -26,7 +18,6 @@ export default function WorkspaceMembersNav() {
         return (
           <div
             key={member.userId}
-            title={`${member.username}${isOnline ? " (online)" : ""}`}
             style={{
               position: "relative",
               width: 28,
@@ -43,6 +34,7 @@ export default function WorkspaceMembersNav() {
               opacity: isOnline ? 1 : 0.45,
               transition: "all 0.2s ease-in-out",
             }}
+            className="group cursor-pointer"
           >
             {member.username.slice(0, 2).toUpperCase()}
             {isOnline && (
@@ -60,6 +52,10 @@ export default function WorkspaceMembersNav() {
                 }}
               />
             )}
+            {/* Premium Custom Tooltip */}
+            <div className="absolute bottom-[calc(100%+8px)] left-1/2 -translate-x-1/2 scale-95 opacity-0 group-hover:scale-100 group-hover:opacity-100 transition-all duration-150 ease-out z-50 bg-[#0F111A] border border-indigo-500/20 text-[#E2E8F0] text-[10px] font-semibold py-1 px-2 rounded-md shadow-[0_0_12px_rgba(49,46,129,0.3)] whitespace-nowrap pointer-events-none">
+              {member.username} {isOnline ? "(online)" : "(offline)"}
+            </div>
           </div>
         );
       })}

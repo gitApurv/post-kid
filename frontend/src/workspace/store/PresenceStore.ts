@@ -6,32 +6,22 @@ const usePresenceStore = create<PresenceState>((set) => ({
 
   // ─── Mutations ───────────────────────────────────────────────
 
-  updatePresence: (workspaceId, info) =>
+  updatePresence: (info) =>
     set((state) => ({
       presence: {
         ...state.presence,
-        [workspaceId]: {
-          ...(state.presence[workspaceId] || {}),
-          [info.userId]: info,
-        },
+        [info.userId]: info,
       },
     })),
 
-  removePresence: (workspaceId, userId) =>
+  removePresence: (userId) =>
     set((state) => {
-      const workspacePresence = { ...(state.presence[workspaceId] || {}) };
-      delete workspacePresence[userId];
-      return {
-        presence: { ...state.presence, [workspaceId]: workspacePresence },
-      };
+      const remainingPresence = { ...state.presence };
+      delete remainingPresence[userId];
+      return { presence: remainingPresence };
     }),
 
-  clearWorkspacePresence: (workspaceId) =>
-    set((state) => {
-      const remaining = { ...state.presence };
-      delete remaining[workspaceId];
-      return { presence: remaining };
-    }),
+  reset: () => set({ presence: {} }),
 }));
 
 export default usePresenceStore;

@@ -1,47 +1,45 @@
 import { create } from "zustand";
 import type WorkspaceMemberState from "../types/state/WorkspaceMemberState";
+import type WorkspaceMember from "../types/items/WorkspaceMember";
+import type MemberResponse from "../types/response/MemberResponse";
+
+export function mapResponseToMember(member: MemberResponse): WorkspaceMember {
+  return {
+    workspaceId: member.workspaceId,
+    userId: member.userId,
+    username: member.username,
+    role: member.role,
+  };
+}
 
 const useWorkspaceMemberStore = create<WorkspaceMemberState>((set) => ({
   members: {},
 
   // ─── Mutations ───────────────────────────────────────────────
 
-  upsertMember: (workspaceId, member) =>
+  upsertMember: (member) =>
     set((state) => ({
       members: {
         ...state.members,
-        [workspaceId]: {
-          ...(state.members[workspaceId] || {}),
-          [member.userId]: member,
-        },
+        [member.userId]: member,
       },
     })),
 
-  upsertMembers: (workspaceId, membersList) =>
+  upsertMembers: (membersList) =>
     set((state) => ({
       members: {
         ...state.members,
-        [workspaceId]: {
-          ...(state.members[workspaceId] || {}),
-          ...Object.fromEntries(
-            membersList.map((member) => [member.userId, member]),
-          ),
-        },
+        ...Object.fromEntries(
+          membersList.map((member) => [member.userId, member]),
+        ),
       },
     })),
 
-  removeMember: (workspaceId, userId) =>
+  removeMember: (userId) =>
     set((state) => {
-      const workspaceMembers = { ...(state.members[workspaceId] || {}) };
-      delete workspaceMembers[userId];
-      return { members: { ...state.members, [workspaceId]: workspaceMembers } };
-    }),
-
-  clearWorkspaceMembers: (workspaceId) =>
-    set((state) => {
-      const remaining = { ...state.members };
-      delete remaining[workspaceId];
-      return { members: remaining };
+      const remainingMembers = { ...state.members };
+      delete remainingMembers[userId];
+      return { members: remainingMembers };
     }),
 
   reset: () => set({ members: {} }),
