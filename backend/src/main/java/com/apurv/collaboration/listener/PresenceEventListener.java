@@ -12,6 +12,7 @@ import org.springframework.messaging.simp.stomp.StompHeaderAccessor;
 import org.springframework.stereotype.Component;
 import org.springframework.web.socket.messaging.SessionDisconnectEvent;
 import org.springframework.web.socket.messaging.SessionSubscribeEvent;
+import org.springframework.web.socket.messaging.SessionUnsubscribeEvent;
 
 import com.apurv.collaboration.dto.PresenceEventStatus;
 import com.apurv.collaboration.security.StompPrincipal;
@@ -86,6 +87,14 @@ public class PresenceEventListener {
         }
 
         sessionAttributes.put(WORKSPACE_ID_SESSION_ATTR, workspaceId);
+        String subscriptionId = accessor.getSubscriptionId();
+        if (subscriptionId != null) {
+            @SuppressWarnings("unchecked")
+            Map<String, String> subscriptionWorkspaces = (Map<String, String>) sessionAttributes.computeIfAbsent(
+                    "presence.subscriptions", k -> new ConcurrentHashMap<>());
+            subscriptionWorkspaces.put(subscriptionId, workspaceId);
+        }
+
         workspaceUserSessions.computeIfAbsent(workspaceId, k -> new ConcurrentHashMap<>())
                 .computeIfAbsent(userId, k -> ConcurrentHashMap.newKeySet())
                 .add(sessionId);
@@ -99,6 +108,47 @@ public class PresenceEventListener {
             for (String onlineUserId : activeUsers.keySet()) {
                 if (!onlineUserId.equals(userId)) {
                     presenceEventPublisher.publish(workspaceId, onlineUserId, PresenceEventStatus.ONLINE);
+                }
+            }
+        }
+    }
+
+    @EventListener
+    public void onUnsubscribe(SessionUnsubscribeEvent event) {
+        StompHeaderAccessor accessor = StompHeaderAccessor.wrap(event.getMessage());
+        String subscriptionId = accessor.getSubscriptionId();
+        String sessionId = accessor.getSessionId();
+        Principal rawPrincipal = accessor.getUser();
+
+        if (rawPrincipal == null || !(rawPrincipal instanceof StompPrincipal principal)) {
+            return;
+        }
+
+        Map<String, Object> sessionAttributes = accessor.getSessionAttributes();
+        if (sessionAttributes == null) {
+            return;
+        }
+
+        @SuppressWarnings("unchecked")
+        Map<String, String> subscriptionWorkspaces = (Map<String, String>) sessionAttributes.get("presence.subscriptions");
+        if (subscriptionWorkspaces != null) {
+            String workspaceId = subscriptionWorkspaces.remove(subscriptionId);
+            if (workspaceId != null) {
+                String userId = principal.getUserId();
+                Map<String, Set<String>> userSessions = workspaceUserSessions.get(workspaceId);
+                if (userSessions != null) {
+                    Set<String> sessions = userSessions.get(userId);
+                    if (sessions != null) {
+                        sessions.remove(sessionId);
+                        if (sessions.isEmpty()) {
+                            userSessions.remove(userId);
+                            if (userSessions.isEmpty()) {
+                                workspaceUserSessions.remove(workspaceId);
+                            }
+                            presenceEventPublisher.publish(workspaceId, userId, PresenceEventStatus.OFFLINE);
+                            log.info("User {} unsubscribed and went offline in workspace {}", userId, workspaceId);
+                        }
+                    }
                 }
             }
         }
