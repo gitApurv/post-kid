@@ -1,112 +1,134 @@
 import useWorkspaceStore from "../../workspace/store/workspaceStore";
 import useAuthStore from "../../auth/store/authStore";
 import useCollectionStore from "../../collection/store/collectionStore";
-import useFolderStore from "../../collection/store/FolderStore";
+import useFolderStore from "../../collection/store/folderStore";
 import useRequestStore, {
   mapResponseToRequestItem,
 } from "../../request/store/requestStore";
-import useWorkspaceMemberStore from "../../workspace/store/WorkspaceMemberStore";
-import useEnvironmentStore from "../../environment/store/environmentStore";
+import useWorkspaceMemberStore from "../../workspace/store/workspaceMemberStore";
+import useEnvironmentStore, {
+  mapResponseToEnvironment,
+} from "../../environment/store/environmentStore";
 import useNotificationStore from "../../common/store/NotificationStore";
-import useWebsocketStore from "../store/useWebsocketStore";
-import usePresenceStore from "../../workspace/store/PresenceStore";
 import type CollaborationEvent from "../types/event/CollaborationEvent";
-import useVariableStore from "../../environment/store/variableStore";
+import useEnvironmentVariableStore from "../../environment/store/environmentVariableStore";
 import type DeletedPayload from "../types/event/DeletedPayload";
 import type CollectionResponse from "../../collection/types/response/CollectionResponse";
 import type FolderResponse from "../../collection/types/response/FolderResponse";
 import type RequestItemResponse from "../../request/types/response/RequestItemResponse";
-import type Environment from "../../environment/types/items/Environment";
+import type EnvironmentResponse from "../../environment/types/response/EnvironmentResponse";
 import type VariableResponse from "../../environment/types/response/VariableResponse";
 import type WorkspaceItem from "../../workspace/types/items/WorkspaceItem";
 import type WorkspaceMember from "../../workspace/types/items/WorkspaceMember";
-import type PresenceInfo from "../../workspace/types/items/PresenceInfo";
 
 const handleCollaborationEvent = (event: CollaborationEvent) => {
   const currentUser = useAuthStore.getState().currentUser;
 
-  if (currentUser && event.actorId === currentUser.name) {
+  // Ignore events that are triggered by the current user, as they are already handled locally
+  if (currentUser && event.actorId === currentUser.id) {
     return;
   }
 
   const { action, entityType, payload } = event;
 
+  // Handle the event based on its entity type and action
   switch (entityType) {
     case "COLLECTION": {
       if (action === "DELETED") {
+        const deletedPayload = payload as DeletedPayload;
+
+        // Cascade remove the collection and its associated folders and requests
         useCollectionStore
           .getState()
-          .cascadeRemoveCollection((payload as DeletedPayload).id);
+          .cascadeRemoveCollection(deletedPayload.id);
       } else {
-        useCollectionStore
-          .getState()
-          .upsertCollection(payload as CollectionResponse);
+        const collectionPayload = payload as CollectionResponse;
+
+        // Upsert the collection in the store
+        useCollectionStore.getState().upsertCollection(collectionPayload);
       }
       break;
     }
 
     case "FOLDER": {
       if (action === "DELETED") {
-        useFolderStore
-          .getState()
-          .cascadeRemoveFolder((payload as DeletedPayload).id);
+        const deletedPayload = payload as DeletedPayload;
+        // Cascade remove the folder and its associated requests
+        useFolderStore.getState().cascadeRemoveFolder(deletedPayload.id);
       } else {
-        useFolderStore.getState().upsertFolder(payload as FolderResponse);
+        const folderPayload = payload as FolderResponse;
+        // Upsert the folder in the store
+        useFolderStore.getState().upsertFolder(folderPayload);
       }
       break;
     }
 
     case "REQUEST": {
       if (action === "DELETED") {
-        const deletedId = (payload as DeletedPayload).id;
-        useRequestStore.getState().removeRequest(deletedId);
+        const deletedPayload = payload as DeletedPayload;
+        // Remove the request from the store
+        useRequestStore.getState().removeRequest(deletedPayload.id);
+
+        // If the deleted request was the active request, clear the active request
         const activeRequest = useRequestStore.getState().activeRequest;
-        if (activeRequest?.id === deletedId) {
+        if (activeRequest?.id === deletedPayload.id) {
           useRequestStore.getState().setActiveRequestDirectly(null);
         }
       } else {
         const reqPayload = payload as RequestItemResponse;
-        const mappedRequest = mapResponseToRequestItem(
-          reqPayload,
-          reqPayload.collectionId,
-          reqPayload.folderId,
-        );
+        const mappedRequest = mapResponseToRequestItem(reqPayload);
+        // Upsert the request in the store
         useRequestStore.getState().upsertRequest(mappedRequest);
+
+        // If the upserted request is the active request, update the active request in the store
+        if (useRequestStore.getState().activeRequestId === mappedRequest.id) {
+          useRequestStore.getState().setActiveRequest(mappedRequest);
+        }
       }
       break;
     }
 
     case "ENVIRONMENT": {
       if (action === "DELETED") {
+        const deletedPayload = payload as DeletedPayload;
+        // Cascade remove the environment and its associated variables
         useEnvironmentStore
           .getState()
-          .cascadeRemoveEnvironment((payload as DeletedPayload).id);
+          .cascadeRemoveEnvironment(deletedPayload.id);
       } else {
-        useEnvironmentStore
-          .getState()
-          .upsertEnvironment(payload as Environment);
+        const envPayload = payload as EnvironmentResponse;
+        const mappedEnv = mapResponseToEnvironment(envPayload);
+        // Upsert the environment in the store
+        useEnvironmentStore.getState().upsertEnvironment(mappedEnv);
       }
       break;
     }
 
     case "ENVIRONMENT_VARIABLE": {
       if (action === "DELETED") {
-        useVariableStore
+        const deletedPayload = payload as DeletedPayload;
+        // Remove the variable from the store
+        useEnvironmentVariableStore
           .getState()
-          .removeVariable((payload as DeletedPayload).id);
+          .removeVariable(deletedPayload.id);
       } else {
-        useVariableStore.getState().upsertVariable(payload as VariableResponse);
+        const varPayload = payload as VariableResponse;
+        // Upsert the variable in the store
+        useEnvironmentVariableStore.getState().upsertVariable(varPayload);
       }
       break;
     }
 
     case "WORKSPACE": {
-      const workspacePayloadId = (payload as DeletedPayload).id;
       if (action === "DELETED") {
-        useWorkspaceStore.getState().removeWorkspace(workspacePayloadId);
+        const deletedPayload = payload as DeletedPayload;
+        // Remove the workspace from the store
+        useWorkspaceStore.getState().removeWorkspace(deletedPayload.id);
+
+        // If the deleted workspace was the active workspace, set the active workspace to null or a fallback workspace
         const activeWorkspaceId =
           useWorkspaceStore.getState().activeWorkspaceId;
-        if (activeWorkspaceId === workspacePayloadId) {
+        if (activeWorkspaceId === deletedPayload.id) {
           const remaining = Object.keys(
             useWorkspaceStore.getState().workspaces,
           );
@@ -114,26 +136,33 @@ const handleCollaborationEvent = (event: CollaborationEvent) => {
           useWorkspaceStore.getState().setActiveWorkspaceId(fallbackId);
         }
       } else {
-        useWorkspaceStore.getState().upsertWorkspace(payload as WorkspaceItem);
+        const workspacePayload = payload as WorkspaceItem;
+        // Upsert the workspace in the store
+        useWorkspaceStore.getState().upsertWorkspace(workspacePayload);
       }
       break;
     }
 
     case "WORKSPACE_MEMBER": {
       if (action === "DELETED") {
-        const deletedMemberId = (payload as DeletedPayload).id;
-        useWorkspaceMemberStore
-          .getState()
-          .removeMember(event.workspaceId, deletedMemberId);
-        useWorkspaceStore.getState().updateMemberCount(event.workspaceId, -1);
+        const deletedPayload = payload as DeletedPayload;
+        const exists =
+          !!useWorkspaceMemberStore.getState().members[deletedPayload.id];
 
-        if (currentUser && deletedMemberId === currentUser.id) {
+        // Remove the member from the store
+        useWorkspaceMemberStore.getState().removeMember(deletedPayload.id);
+
+        // If the deleted member existed, decrement the member count for the workspace
+        if (exists) {
+          useWorkspaceStore.getState().updateMemberCount(event.workspaceId, -1);
+        }
+
+        // If the deleted member is the current user, show a notification and reset the workspace member store
+        if (currentUser && deletedPayload.id === currentUser.id) {
           useNotificationStore
             .getState()
             .addNotification("You were removed from this workspace.", "ERROR");
-          useWorkspaceMemberStore
-            .getState()
-            .clearWorkspaceMembers(event.workspaceId);
+          useWorkspaceMemberStore.getState().reset();
           useWorkspaceStore.getState().removeWorkspace(event.workspaceId);
 
           const { activeWorkspaceId, workspaces } =
@@ -145,63 +174,26 @@ const handleCollaborationEvent = (event: CollaborationEvent) => {
         }
       } else {
         const memberPayload = payload as WorkspaceMember;
-        useWorkspaceMemberStore
-          .getState()
-          .upsertMember(memberPayload.workspaceId, memberPayload);
-        useWorkspaceStore
-          .getState()
-          .updateMemberCount(memberPayload.workspaceId, 1);
+        const exists =
+          !!useWorkspaceMemberStore.getState().members[memberPayload.userId];
+
+        // Upsert the member in the store
+        useWorkspaceMemberStore.getState().upsertMember(memberPayload);
+
+        // If the member did not exist before, increment the member count for the workspace
+        if (!exists) {
+          useWorkspaceStore
+            .getState()
+            .updateMemberCount(memberPayload.workspaceId, 1);
+        }
       }
       break;
     }
   }
 };
 
-const activeSubscriptions: Record<string, () => void> = {};
-
-function startWorkspaceRealtime(workspaceId: string) {
-  const { subscribe } = useWebsocketStore.getState();
-
-  const unsubEvents = subscribe(`/topic/workspace/${workspaceId}`, (event) => {
-    handleCollaborationEvent(event as CollaborationEvent<unknown>);
-  });
-
-  const unsubPresence = subscribe(
-    `/topic/workspace/${workspaceId}/presence`,
-    (presenceEvent) => {
-      const presence = presenceEvent as {
-        userId: string;
-        username: string;
-        status: "online" | "idle" | "OFFLINE";
-      };
-      if (presence.status === "OFFLINE") {
-        usePresenceStore
-          .getState()
-          .removePresence(workspaceId, presence.userId);
-      } else {
-        usePresenceStore
-          .getState()
-          .updatePresence(workspaceId, presence as PresenceInfo);
-      }
-    },
-  );
-
-  activeSubscriptions[`${workspaceId}:events`] = unsubEvents;
-  activeSubscriptions[`${workspaceId}:presence`] = unsubPresence;
-}
-
-function stopWorkspaceRealtime(workspaceId: string) {
-  activeSubscriptions[`${workspaceId}:events`]?.();
-  activeSubscriptions[`${workspaceId}:presence`]?.();
-  delete activeSubscriptions[`${workspaceId}:events`];
-  delete activeSubscriptions[`${workspaceId}:presence`];
-  usePresenceStore.getState().clearWorkspacePresence(workspaceId);
-}
-
 const eventRouter = {
   handleCollaborationEvent,
-  startWorkspaceRealtime,
-  stopWorkspaceRealtime,
 };
 
 export default eventRouter;

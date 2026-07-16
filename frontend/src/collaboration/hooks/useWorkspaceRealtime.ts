@@ -1,6 +1,6 @@
 import { useEffect } from "react";
 import useWebsocketStore from "../store/useWebsocketStore";
-import eventRouter from "../lib/eventRouter";
+import WorkspaceRealtimeService from "../service/WorkspaceRealtimeService";
 
 export default function useWorkspaceRealtime(workspaceId: string | null) {
   const isConnected = useWebsocketStore((state) => state.isConnected);
@@ -8,9 +8,9 @@ export default function useWorkspaceRealtime(workspaceId: string | null) {
   useEffect(() => {
     if (!workspaceId || !isConnected) return;
 
-    eventRouter.startWorkspaceRealtime(workspaceId);
+    WorkspaceRealtimeService.startWorkspaceRealtime(workspaceId);
     return () => {
-      eventRouter.stopWorkspaceRealtime(workspaceId);
+      WorkspaceRealtimeService.stopWorkspaceRealtime(workspaceId);
     };
   }, [workspaceId, isConnected]);
 }
