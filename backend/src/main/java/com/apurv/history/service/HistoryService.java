@@ -27,7 +27,7 @@ public class HistoryService {
     private final RequestHistoryRepository historyRepository;
 
     @Transactional
-    public void saveHistory(ExecutionRequest request, ExecutionResponse response, User currentUser) {
+    public RequestHistory saveHistory(ExecutionRequest request, ExecutionResponse response, User currentUser) {
         RequestHistory requestHistory = RequestHistory.builder()
                 .userId(currentUser.getId())
                 .method(request.getMethod().name())
@@ -46,9 +46,10 @@ public class HistoryService {
                 .executedAt(Instant.now())
                 .build();
 
-        historyRepository.save(requestHistory);
+        RequestHistory saved = historyRepository.save(requestHistory);
 
-        log.info("Saved request history for userId: {}", currentUser.getId());
+        log.info("Saved request history with id: {} for userId: {}", saved.getId(), currentUser.getId());
+        return saved;
     }
 
     @Transactional(readOnly = true)

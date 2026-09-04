@@ -48,3 +48,6 @@ jwt:
 postKid:
   cors:
     allowed-origins: ${POSTKID_ALLOWED_URLS:http://localhost:5173}
+
+kafka:
+  bootstrap-servers:${KAKFA_BOOTSTRAP_SERVERS:http://localhost:9092}

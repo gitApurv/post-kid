@@ -1,6 +1,7 @@
 package com.apurv.request.service;
 
 import java.net.URI;
+import java.nio.charset.StandardCharsets;
 import java.time.Duration;
 import java.util.HashMap;
 import java.util.Map;
@@ -9,6 +10,7 @@ import java.util.UUID;
 import org.springframework.http.HttpMethod;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
+import org.springframework.kafka.core.KafkaTemplate;
 import org.springframework.stereotype.Service;
 import org.springframework.web.reactive.function.client.WebClient;
 import org.springframework.web.reactive.function.client.WebClientResponseException;
@@ -16,9 +18,11 @@ import org.springframework.web.reactive.function.client.WebClient.RequestBodySpe
 import org.springframework.web.reactive.function.client.WebClient.RequestHeadersSpec;
 
 import com.apurv.auth.entity.User;
+import com.apurv.history.document.RequestHistory;
 import com.apurv.history.service.HistoryService;
 import com.apurv.request.dto.ExecutionRequest;
 import com.apurv.request.dto.ExecutionResponse;
+import com.apurv.request.dto.RequestExecutedEvent;
 import com.apurv.workspace.entity.Workspace;
 import com.apurv.workspace.entity.WorkspaceRole;
 import com.apurv.workspace.repository.WorkspaceRepository;
@@ -30,14 +34,18 @@ import lombok.extern.slf4j.Slf4j;
 @Slf4j
 public class RequestExecutionService {
 
+        private static final String TOPIC_REQUEST_EXECUTED = "request-executed-event-topic";
+
         private final WebClient webClient;
         private final WorkspaceRepository workspaceRepository;
         private final WorkspaceAuthorizationService workspaceAuthorizationService;
         private final HistoryService historyService;
+        private final KafkaTemplate<String, RequestExecutedEvent> kafkaTemplate;
 
         public RequestExecutionService(WebClient.Builder webClientBuilder, HistoryService historyService,
                         WorkspaceRepository workspaceRepository,
-                        WorkspaceAuthorizationService workspaceAuthorizationService) {
+                        WorkspaceAuthorizationService workspaceAuthorizationService,
+                        KafkaTemplate<String, RequestExecutedEvent> kafkaTemplate) {
                 this.webClient = webClientBuilder
                                 .codecs(config -> config
                                                 .defaultCodecs()
@@ -46,6 +54,7 @@ public class RequestExecutionService {
                 this.historyService = historyService;
                 this.workspaceRepository = workspaceRepository;
                 this.workspaceAuthorizationService = workspaceAuthorizationService;
+                this.kafkaTemplate = kafkaTemplate;
         }
 
         public ExecutionResponse executeRequest(UUID workspaceId, ExecutionRequest request,
@@ -59,6 +68,8 @@ public class RequestExecutionService {
 
                 long startTime = System.currentTimeMillis();
                 ExecutionResponse response;
+                String errorType = null;
+                Long responseSizeBytes = null;
 
                 try {
                         validateUrl(request.getUrl());
@@ -114,18 +125,30 @@ public class RequestExecutionService {
                         long duration = System.currentTimeMillis() - startTime;
 
                         Map<String, String> responseHeaders = new HashMap<>();
-                        httpResponse.getHeaders()
-                                        .forEach((key, values) -> responseHeaders.put(key, String.join(",", values)));
+                        if (httpResponse != null) {
+                                httpResponse.getHeaders()
+                                                .forEach((key, values) -> responseHeaders.put(key,
+                                                                String.join(",", values)));
+
+                                if (httpResponse.getHeaders().getContentLength() >= 0) {
+                                        responseSizeBytes = httpResponse.getHeaders().getContentLength();
+                                }
+                        }
+
+                        String responseBody = httpResponse != null ? httpResponse.getBody() : null;
+                        if (responseSizeBytes == null && responseBody != null) {
+                                responseSizeBytes = (long) responseBody.getBytes(StandardCharsets.UTF_8).length;
+                        }
 
                         log.info("Request {} to {} completed in {} ms with status code {}", request.getMethod(),
                                         request.getUrl(),
                                         duration,
-                                        httpResponse.getStatusCode().value());
+                                        httpResponse != null ? httpResponse.getStatusCode().value() : 200);
 
                         response = ExecutionResponse.builder()
-                                        .statusCode(httpResponse.getStatusCode().value())
+                                        .statusCode(httpResponse != null ? httpResponse.getStatusCode().value() : 200)
                                         .responseHeaders(responseHeaders)
-                                        .responseBody(httpResponse.getBody())
+                                        .responseBody(responseBody)
                                         .durationMs(duration)
                                         .success(true)
                                         .build();
@@ -137,9 +160,15 @@ public class RequestExecutionService {
                                         request.getMethod(),
                                         request.getUrl(), duration, e.getStatusCode().value());
 
+                        errorType = e.getStatusCode().is4xxClientError() ? "HTTP_4XX" : "HTTP_5XX";
+                        String responseBody = e.getResponseBodyAsString();
+                        if (responseBody != null) {
+                                responseSizeBytes = (long) responseBody.getBytes(StandardCharsets.UTF_8).length;
+                        }
+
                         response = ExecutionResponse.builder()
                                         .statusCode(e.getStatusCode().value())
-                                        .responseBody(e.getResponseBodyAsString())
+                                        .responseBody(responseBody)
                                         .durationMs(duration)
                                         .success(false)
                                         .errorMessage("Execution failed: " + e.getMessage()).build();
@@ -152,6 +181,8 @@ public class RequestExecutionService {
                                         duration,
                                         e.getMessage());
 
+                        errorType = categorizeException(e);
+
                         response = ExecutionResponse.builder()
                                         .statusCode(0)
                                         .durationMs(duration)
@@ -160,8 +191,72 @@ public class RequestExecutionService {
                                         .build();
                 }
 
-                historyService.saveHistory(request, response, currentUser);
+                RequestHistory savedHistory = historyService.saveHistory(request, response, currentUser);
+                publishExecutionEvent(workspaceId, savedHistory, request, response, currentUser, errorType,
+                                responseSizeBytes);
                 return response;
+        }
+
+        private void publishExecutionEvent(UUID workspaceId, RequestHistory savedHistory, ExecutionRequest request,
+                        ExecutionResponse response, User currentUser, String errorType,
+                        Long responseSizeBytes) {
+                try {
+                        RequestExecutedEvent event = RequestExecutedEvent.builder()
+                                        .eventId(UUID.randomUUID())
+                                        .executionId(savedHistory.getId())
+                                        .executedAt(savedHistory.getExecutedAt())
+                                        .workspaceId(workspaceId)
+                                        .userId(currentUser.getId())
+                                        .method(request.getMethod().name())
+                                        .url(request.getUrl())
+                                        .targetHost(extractHost(request.getUrl()))
+                                        .statusCode(response.getStatusCode())
+                                        .durationMs(response.getDurationMs())
+                                        .success(response.isSuccess())
+                                        .errorType(errorType)
+                                        .errorMessage(response.getErrorMessage())
+                                        .responseSizeBytes(responseSizeBytes)
+                                        .build();
+
+                        kafkaTemplate.send(TOPIC_REQUEST_EXECUTED, workspaceId.toString(), event)
+                                        .whenComplete((result, ex) -> {
+                                                if (ex != null) {
+                                                        log.error("Failed to send RequestExecutedEvent for executionId {}: {}",
+                                                                        savedHistory.getId(), ex.getMessage());
+                                                } else {
+                                                        log.debug("Successfully published RequestExecutedEvent for executionId {}",
+                                                                        savedHistory.getId());
+                                                }
+                                        });
+                } catch (Exception ex) {
+                        log.error("Failed to construct or publish RequestExecutedEvent for executionId {}: {}",
+                                        savedHistory.getId(), ex.getMessage());
+                }
+        }
+
+        private String extractHost(String url) {
+                try {
+                        return URI.create(url).getHost();
+                } catch (Exception e) {
+                        return null;
+                }
+        }
+
+        private String categorizeException(Throwable e) {
+                Throwable cause = e;
+                while (cause != null) {
+                        if (cause instanceof java.util.concurrent.TimeoutException) {
+                                return "TIMEOUT";
+                        }
+                        if (cause instanceof java.net.UnknownHostException) {
+                                return "DNS_ERROR";
+                        }
+                        if (cause instanceof java.net.ConnectException) {
+                                return "CONNECTION_REFUSED";
+                        }
+                        cause = cause.getCause();
+                }
+                return "NETWORK_ERROR";
         }
 
         private HttpMethod toSpringMethod(com.apurv.request.entity.HttpMethod method) {
