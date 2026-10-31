@@ -7,7 +7,6 @@
 [![Vite](https://img.shields.io/badge/Vite-8.0-646CFF.svg?style=flat-square&logo=vite)](https://vitejs.dev/)
 [![Tailwind CSS](https://img.shields.io/badge/Tailwind-v4.3-38B2AC.svg?style=flat-square&logo=tailwindcss)](https://tailwindcss.com/)
 [![Docker](https://img.shields.io/badge/Docker-Containerized-2496ED.svg?style=flat-square&logo=docker)](https://www.docker.com/)
-[![License](https://img.shields.io/badge/License-MIT-green.svg?style=flat-square)](LICENSE)
 
 **PostKid** is an enterprise-grade, real-time API collaboration and testing platform designed for modern software engineering teams. Built with a high-performance Spring Boot backend and an ultra-responsive React 19 frontend, PostKid enables teams to design, test, execute, share, and document APIs seamlessly with real-time state synchronization, granular role-based access control (RBAC), and hybrid data persistence.
 
@@ -28,7 +27,6 @@
 - [API Documentation & Health Monitoring](#-api-documentation--health-monitoring)
 - [Testing & Quality Assurance](#-testing--quality-assurance)
 - [Production Deployment](#-production-deployment)
-- [License](#-license)
 
 ---
 
@@ -223,7 +221,7 @@ To launch the complete infrastructure stack (PostgreSQL, MongoDB, Redis, Spring 
 
 ```bash
 # Clone the repository
-git clone https://github.com/your-username/PostKid.git
+git clone https://github.com/gitApurv/post-kid.git
 cd PostKid
 
 # Launch all containers via Docker Compose
@@ -375,9 +373,10 @@ docker build -t postkid-frontend:latest ./frontend
 
 ---
 
-## 📄 License
+## 👨‍💻 Author
 
-This project is licensed under the **MIT License**. See the [LICENSE](LICENSE) file for more details.
+**Apurv**
+- GitHub: [@gitApurv](https://github.com/gitApurv)
 
 ---
 
